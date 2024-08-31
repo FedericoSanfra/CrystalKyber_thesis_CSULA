@@ -1,1 +1,1 @@
-C:\Users\feder\RustroverProjects\KCimpl\thesis\KCimpl\target\debug\KCimpl.exe: C:\Users\feder\RustroverProjects\KCimpl\thesis\KCimpl\src\main.rs
+C:\Users\feder\RustroverProjects\thesis\KCimpl\target\debug\KCimpl.exe: C:\Users\feder\RustroverProjects\thesis\KCimpl\src\main.rs C:\Users\feder\RustroverProjects\thesis\KCimpl\src\structures\bytearray.rs C:\Users\feder\RustroverProjects\thesis\KCimpl\src\structures\mod.rs
