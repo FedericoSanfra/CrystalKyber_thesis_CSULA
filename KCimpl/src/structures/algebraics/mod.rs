@@ -1,4 +1,5 @@
 mod polynomial;
+mod matrix;
 
 // //! Algebraics
 // //!
