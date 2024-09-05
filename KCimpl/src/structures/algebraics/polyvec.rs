@@ -80,7 +80,7 @@ impl<T, const D: usize> RingModule<T> for PolyVec<T,D> where T: FiniteRing + Clo
         v
     }
     ///scalar product
-    fn mul(&self, other: &T) -> Self {
+    fn mulf(&self, other: &T) -> Self {
         let mut v = [Default::default(); D];
 
         for i in 0..D {

@@ -1,3 +1,5 @@
+mod polynomial;
+
 // //! Algebraics
 // //!
 // //! Definiton of basic algebraic structures (Ring, Field, Polynomial, Vector, Matrix)
@@ -111,7 +113,7 @@
         fn init() -> Self;
 
         /// Scalar multiplication
-        fn mul(&self, other: &T) -> Self;
+        fn mulf(&self, other: &T) -> Self;
 
         /// Basis vector
         fn basis_vector(position: usize) -> Self;
@@ -150,7 +152,7 @@ pub trait RingModule<T: FiniteRing> {
     fn init() -> Self;
 
     /// Scalar multiplication
-    fn mul(&self, other: &T) -> Self;
+    fn mulf(&self, other: &T) -> Self;
 
     /// Basis vector
     fn basis_vector(position: usize) -> Self;
