@@ -36,12 +36,12 @@ impl<T, const D: usize> RingModule<T> for PolyVec<T,D> where T: FiniteRing + Clo
         Self {
             coefficients: [T::zero(); D],
         }
-        unimplemented!()
+
     }
 
     fn is_zero(&self) -> bool {
         D==0 || self.coefficients.iter().all(|c| c.is_zero())
-        unimplemented!()
+
     }
 
     fn neg(&self) -> Self {
@@ -58,7 +58,7 @@ impl<T, const D: usize> RingModule<T> for PolyVec<T,D> where T: FiniteRing + Clo
         for i in 0..D {
             v[i] = self.coefficients[i].add(&other.coefficients[i]);
         }
-        Self::from_vec(v);
+        Self::from_vec(v)
     }
 
     fn sub(&self, other: &Self) -> Self {
@@ -86,7 +86,7 @@ impl<T, const D: usize> RingModule<T> for PolyVec<T,D> where T: FiniteRing + Clo
         for i in 0..D {
             v[i]= self.coefficients[i].mul(other)
         }
-        Self::from_vec(v);
+        Self::from_vec(v)
     }
 
 }

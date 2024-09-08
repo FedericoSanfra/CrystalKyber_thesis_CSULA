@@ -1,18 +1,15 @@
-mod polynomial;
-mod matrix;
+//! Algebraics
+//!
+//! Definiton of basic algebraic structures (Ring, Field, Polynomial, Vector, Matrix)
 
-// //! Algebraics
-// //!
-// //! Definiton of basic algebraic structures (Ring, Field, Polynomial, Vector, Matrix)
-//
-// mod matrix;
-// mod polynomial;
-// mod polyvec;
-//
-// pub use matrix::Matrix;
-// pub use polynomial::Polynomial;
-// pub use polyvec::PolyVec;
-//
+mod matrix;
+mod polynomial;
+mod polyvec;
+
+pub use matrix::Matrix;
+pub use polynomial::Polynomial;
+pub use polyvec::PolyVec;
+
     //Finite Group Element (cyclic)
     pub trait FiniteGroup: Sized+Eq { //sized, so the size must be known at compile time
     //check if the element is the additive identity
