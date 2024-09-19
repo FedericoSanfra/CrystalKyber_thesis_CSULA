@@ -10,7 +10,8 @@ pub use matrix::Matrix;
 pub use polynomial::Polynomial;
 pub use polyvec::PolyVec;
 
-    //Finite Group Element (cyclic)
+
+//Finite Group Element (cyclic)
     pub trait FiniteGroup: Sized+Eq { //sized, so the size must be known at compile time
     //check if the element is the additive identity
     fn is_zero(&self)-> bool;
