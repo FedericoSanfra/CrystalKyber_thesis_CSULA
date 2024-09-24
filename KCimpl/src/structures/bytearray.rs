@@ -74,7 +74,7 @@ impl ByteArray{
     }
 
     //Split the bytearray at the position pos
-    pub fn split_at_pos(&self, pos: usize) -> (Self, Self){
+    pub fn split_at(&self, pos: usize) -> (Self, Self){
         let (d1,d2) = self.data.split_at(pos);
         (Self { data: d1.to_vec() }, Self { data: d2.to_vec() })
     }

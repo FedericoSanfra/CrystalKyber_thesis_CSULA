@@ -7,41 +7,50 @@ use sha3::{
     Digest, Sha3_256, Sha3_512, Shake128, Shake256,
 };
 
-/// shake-128 wrapper
+/// Shake-128 wrapper
 pub fn shake_128(data: &[u8], len: usize) -> Vec<u8> {
-    use crate::sha3::digest::Input;
-    let mut buffer = vec![0; len];
-    let mut shake: Shake128 = Default::default();
-    shake.input(data);
+    let mut buffer = vec![0; len]; // Allocate buffer of specified length
+    let mut shake = Shake128::default(); // Create a new Shake128 instance
 
-    let mut reader = shake.xof_result();
-    reader.read(&mut buffer); // will fill the buffer with a customized length
-    //from the xof generator
-    buffer
+    shake.update(data); // Use update instead of input
+
+    // Use `finalize_xof` to obtain the output
+    let mut reader = shake.finalize_xof(); // Updated method
+
+    // Read into the buffer to fill it with the customized length from the XOF generator
+    reader.read(&mut buffer); //TODO Could Handle potential errors, with expect or something similar
+
+    buffer // Return the filled buffer
 }
 
-/// shake-256 wrapper
+/// Shake-256 wrapper
 pub fn shake_256(data: &[u8], len: usize) -> Vec<u8> {
-    use crate::sha3::digest::Input;
-    let mut buffer = vec![0; len];
-    let mut shake: Shake256 = Default::default();
-    shake.input(data);
+    let mut buffer = vec![0; len]; // Allocate buffer of specified length
+    let mut shake = Shake256::default(); // Create a new Shake256 instance
 
-    let mut reader = shake.xof_result();
-    reader.read(&mut buffer);
-    buffer
+    shake.update(data); // Use update instead of input
+
+    // Use `finalize_xof` to obtain the output
+    let mut reader = shake.finalize_xof(); // Updated method
+
+    // Read into the buffer to fill it with the customized length from the XOF generator
+    let bytes_read = reader.read(&mut buffer); // Handle potential errors gracefully
+    //TODO handle potential errors or check on the length of buffer created and filled
+
+    buffer // Return the filled buffer
 }
 
-/// sha3-256 wrapper
+
+/// SHA3-256 wrapper
 pub fn sha3_256(data: &[u8]) -> Vec<u8> {
-    let mut hasher: Sha3_256 = Default::default();
-    hasher.input(data);
-    hasher.result().to_vec()
+    let mut hasher = Sha3_256::default(); // Create a new SHA3-256 instance
+    hasher.update(data); // Use update instead of input
+    hasher.finalize().to_vec() // Use finalize to get the hash and convert to Vec<u8>
 }
 
-/// sha3-512 wrapper
+/// SHA3-512 wrapper
 pub fn sha3_512(data: &[u8]) -> Vec<u8> {
-    let mut hasher: Sha3_512 = Default::default();
-    hasher.input(data);
-    hasher.result().to_vec()
+    let mut hasher = Sha3_512::default(); // Create a new SHA3-512 instance
+    hasher.update(data); // Use update instead of input
+    hasher.finalize().to_vec() // Use finalize to get the hash and convert to Vec<u8>
 }

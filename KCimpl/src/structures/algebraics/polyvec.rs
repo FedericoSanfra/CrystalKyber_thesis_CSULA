@@ -64,10 +64,10 @@ impl<T, const D: usize> RingModule<T> for PolyVec<T,D> where T: FiniteRing + Clo
     fn sub(&self, other: &Self) -> Self {
         let mut v = [Default::default(); D];
 
-        for i in 0..<D {
+        for i in 0..D {
             v[i]= self.coefficients[i].sub(&other.coefficients[i])
         }
-        Self::from_vec(v);
+        Self::from_vec(v)
     }
     ///product between polyvecs
     fn dot(&self, other: &Self) -> T {
