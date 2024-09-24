@@ -7,17 +7,30 @@ use crate::structures::{
     Poly3329, PolyMatrix3329, PolyVec3329, F3329,
 };
 
-/// Funzione per invertire i bit di un numero su 7 bit
-fn byte_rev(i: usize) -> usize {
-    let mut i = i;
-    let mut rev = 0;
-    for _ in 0..7 {
-        rev = (rev << 1) | (i & 1); // Sposta a sinistra `rev` e aggiungi il bit meno significativo di `i`
-        i >>= 1; // Sposta a destra `i` per analizzare il bit successivo
-    }
-    rev
-}
+/// 256-roots of unity
+const ZETAS_256: [usize; 256] = [
+    1, 17, 289, 1584, 296, 1703, 2319, 2804, 1062, 1409, 650, 1063, 1426, 939, 2647, 1722, 2642,
+    1637, 1197, 375, 3046, 1847, 1438, 1143, 2786, 756, 2865, 2099, 2393, 733, 2474, 2110, 2580,
+    583, 3253, 2037, 1339, 2789, 807, 403, 193, 3281, 2513, 2773, 535, 2437, 1481, 1874, 1897,
+    2288, 2277, 2090, 2240, 1461, 1534, 2775, 569, 3015, 1320, 2466, 1974, 268, 1227, 885, 1729,
+    2761, 331, 2298, 2447, 1651, 1435, 1092, 1919, 2662, 1977, 319, 2094, 2308, 2617, 1212, 630,
+    723, 2304, 2549, 56, 952, 2868, 2150, 3260, 2156, 33, 561, 2879, 2337, 3110, 2935, 3289, 2649,
+    1756, 3220, 1476, 1789, 452, 1026, 797, 233, 632, 757, 2882, 2388, 648, 1029, 848, 1100, 2055,
+    1645, 1333, 2687, 2402, 886, 1746, 3050, 1915, 2594, 821, 641, 910, 2154, 3328, 3312, 3040,
+    1745, 3033, 1626, 1010, 525, 2267, 1920, 2679, 2266, 1903, 2390, 682, 1607, 687, 1692, 2132,
+    2954, 283, 1482, 1891, 2186, 543, 2573, 464, 1230, 936, 2596, 855, 1219, 749, 2746, 76, 1292,
+    1990, 540, 2522, 2926, 3136, 48, 816, 556, 2794, 892, 1848, 1455, 1432, 1041, 1052, 1239, 1089,
+    1868, 1795, 554, 2760, 314, 2009, 863, 1355, 3061, 2102, 2444, 1600, 568, 2998, 1031, 882,
+    1678, 1894, 2237, 1410, 667, 1352, 3010, 1235, 1021, 712, 2117, 2699, 2606, 1025, 780, 3273,
+    2377, 461, 1179, 69, 1173, 3296, 2768, 450, 992, 219, 394, 40, 680, 1573, 109, 1853, 1540,
+    2877, 2303, 2532, 3096, 2697, 2572, 447, 941, 2681, 2300, 2481, 2229, 1274, 1684, 1996, 642,
+    927, 2443, 1583, 279, 1414, 735, 2508, 2688, 2419, 1175,
+];
 
+/// 7-byte reversal (to impleme)
+fn byte_rev(i: usize) -> usize {
+    i
+}
 
 /// Basecase multiplication between polynomials (p 7)
 fn bcm<const N: usize>(a: &Poly3329<N>, b: &Poly3329<N>) -> Poly3329<N> {
@@ -43,7 +56,7 @@ fn bcm<const N: usize>(a: &Poly3329<N>, b: &Poly3329<N>) -> Poly3329<N> {
     p
 }
 
-/// Base case multiplivation for vectors
+/// Base case multiplication for vectors
 fn bcm_vec<const N: usize, const D: usize>(
     a: &PolyVec3329<N, D>,
     b: &PolyVec3329<N, D>,
@@ -51,10 +64,23 @@ fn bcm_vec<const N: usize, const D: usize>(
     let mut p = bcm(&a.get(0), &b.get(0));
     for i in 1..D {
         p = p.add(&bcm(&a.get(i), &b.get(i)));
-    } //product between matrix's rows and b vector
+    }
     p
 }
 
+/// Matrix base case multiplication, cf p. 7
+pub fn bcm_matrix_vec<const N: usize, const X: usize, const Y: usize>(
+    a: &PolyMatrix3329<N, X, Y>,
+    b: &PolyVec3329<N, X>,
+) -> PolyVec3329<N, Y> {
+    let mut v = PolyVec3329::init();
+
+    for i in 0..Y {
+        v.set(i, bcm_vec(&a.row(i), &b))
+    }
+
+    v
+}
 
 /// Computes a.b as NTT^-1(a_hat o b_hat)
 fn ntt_product<const N: usize>(a_hat: &Poly3329<N>, b_hat: &Poly3329<N>) -> Poly3329<N> {

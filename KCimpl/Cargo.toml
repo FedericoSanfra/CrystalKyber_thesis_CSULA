@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 rand="^0.8"
+sha3 = "0.10"  # Controlla il sito di crates.io per la versione più recente
+
