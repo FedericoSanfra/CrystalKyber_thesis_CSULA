@@ -25,7 +25,7 @@ impl ByteArray{
     }
 
     //generate a byte array of size len filled with random values
-    pub fn random_fill(len: usize) -> Self {
+    pub fn random(len: usize) -> Self {
         let mut data=vec![0;len];
         let mut rng=rand::thread_rng();
         rng.fill_bytes(&mut data);
