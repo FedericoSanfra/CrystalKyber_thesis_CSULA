@@ -6,8 +6,8 @@ use crate::{
     structures::{algebraics::FiniteField, ByteArray, Poly3329, F3329},
 };
 /// Receives as input a byte stream B=(b0; b1; b2;...) and computes the NTT-representation a' = a'_0 + a'_0X + ... + a'_n-1X^(n-1) in R_q of a in R_q
-/// Algorithm 1 p. 7 round 2
-/// TODO implement the 3 round specification
+/// Algorithm 1 p. 6 round 3
+/// 3 round specification implementation
 pub fn parse<const N: usize>(bs: &ByteArray, q: usize) -> Poly3329<N> {
     let mut i = 0;
     let mut j = 0;
@@ -15,16 +15,25 @@ pub fn parse<const N: usize>(bs: &ByteArray, q: usize) -> Poly3329<N> {
     let mut p = Poly3329::init();
 
     while j < N {
-        let d = (bs.data[i] as usize) + (bs.data[i + 1] as usize) << 8;
-        if d < 19 * q {
-            p.set_coeff(j, F3329::from_int(d));
+        let d1 = (bs.data[i] as usize) + 256 * ((bs.data[i + 1] % 16) as usize);
+        let d2 = ((bs.data[i + 1] / 16) as usize) + 16 * (bs.data[i + 2] as usize);
+
+        if d1 < q {
+            p.set_coeff(j, F3329::from_int(d1));
             j += 1;
         }
-        i += 2;
+
+        if d2 < q && j < N {
+            p.set_coeff(j, F3329::from_int(d2));
+            j += 1;
+        }
+
+        i += 3;
     }
 
     p
 }
+
 
 /// Centered Binomial Distribution from which we sample the polynomial coefficient
 /// Algorithm 2 p. 8
