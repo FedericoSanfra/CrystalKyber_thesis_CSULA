@@ -1,66 +1,66 @@
 # ThesisKyber
 Thesis project at Cal State University of Los Angeles on the Crystals Kyber algorithm.
-I started from an online Rust implementation of the algorithm, based on official supporting documentation from the round 2 NIST submission.
-The aim of the project is to develop a new implementation in Rust language, to improve safety levels and robustness against radiation in space applications. The algorithm implementation is based on the new modifications found in the round 3 submission to NIST and exploits well-known techniques of soft encoding and ECC to recover from errors and bit-flipping caused by failure events.
+
+I started from an online Rust implementation of the algorithm, based on official supporting documentation from the round 2 NIST submission. The aim of the project is to develop a new implementation in the Rust language, improving safety levels and robustness against radiation in space applications. The algorithm implementation builds on modifications introduced in the round 3 submission to NIST, incorporating techniques like soft encoding and ECC (Error Correction Code) to recover from bit-flipping caused by failure events.
 
 # Test Suite for PKE Sharding Reed-Solomon
 
 ## Description
 
-This section contains a detailed table of the unit tests we have written to verify the correct implementation of the key sharding and reconstruction functionalities using the Reed-Solomon encoder. The unit tests are written in **white-box testing** mode, including edge cases and various useful scenarios.
+This section outlines the unit tests verifying the correct implementation of key sharding and reconstruction functionalities using the Reed-Solomon encoder. These tests are designed using **white-box testing**, covering edge cases and other relevant scenarios to ensure robustness.
 
 ## Test Table
 
-| #  | Test Name                                      | Tested Range                          | Description                                                                                                                                               |
-|----|------------------------------------------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | `test_shard_key_valid_input`                   | 64-byte key, 5 data shards, 3 parity shards | Tests the normal case of sharding with a 64-byte key and verifies that the number of shards and their sizes are correct.                                 |
-| 2  | `test_shard_key_edge_case_empty_key`           | Empty key, 5 data shards, 3 parity shards | Checks the behavior with an empty key, ensuring that 8 shards are generated, all of which are empty.                                                       |
-| 3  | `test_shard_key_edge_case_small_key`           | 3-byte key, 5 data shards, 3 parity shards | Tests the behavior with a key smaller than the size of a single shard. Verifies that the first shard contains the key and the others are empty.          |
-| 4  | `test_reconstruct_key_valid_input`             | 64-byte key, 5 data shards, 3 parity shards | Verifies the correct reconstruction of the key using all the generated shards without any being missing.                                                  |
-| 5  | `test_reconstruct_key_with_missing_shards`     | 64-byte key, 2 missing shards        | Checks that the key can be reconstructed correctly even if up to 2 shards are missing, utilizing the 3 parity shards to recover the data.                 |
-| 6  | `test_reconstruct_key_with_too_many_missing_shards` | 64-byte key, 3 missing shards        | Tests the error case when more shards are missing than can be recovered (3 out of 8). Verifies that the system fails as expected.                         |
-| 7  | `test_shard_key_with_various_shard_sizes`      | 128-byte key, various combinations of data and parity shards | Tests the functionality with various shard combinations (2 data + 2 parity, 4 data + 2 parity, 5 data + 3 parity, 8 data + 4 parity), ensuring that the number of generated shards is correct. |
+| #  | Test Name                                      | Tested Range                                     | Description                                                                                                                                              |
+|----|------------------------------------------------|--------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | `test_valid_encoding`                          | Key: 10 bytes, 5 data shards, 3 parity shards    | Verifies that the encoding function correctly shards the key and produces the expected number of shards with the correct sizes.                           |
+| 2  | `test_empty_byte_array`                        | Empty key, 3 data shards, 2 parity shards        | Ensures the encoder returns an error for an empty key, validating the `EmptyDataError` behavior.                                                          |
+| 3  | `test_invalid_shard_sizes`                     | Key: 5 bytes, 2 data shards, 3 parity shards     | Tests invalid shard size configuration where the number of parity shards exceeds data shards, expecting an `InvalidShardsSize` error.                     |
+| 4  | `test_zero_data_shards`                        | Key: 5 bytes, 0 data shards, 3 parity shards     | Verifies that passing zero data shards leads to an `InvalidShardsSize` error, as data shards must be greater than zero.                                   |
+| 5  | `test_zero_parity_shards`                      | Key: 5 bytes, 3 data shards, 0 parity shards     | Tests the case of zero parity shards, which should return an `InvalidShardsSize` error, as parity shards must also be greater than zero.                  |
+| 6  | `test_encoding_with_exact_shards`              | Key: 6 bytes, 3 data shards, 2 parity shards     | Verifies that the encoding works when the key size is divisible by the number of data shards, ensuring even shard sizes.                                  |
+| 7  | `test_encoding_with_non_divisible_shards`      | Key: 7 bytes, 3 data shards, 2 parity shards     | Checks that encoding handles cases where the key size is not divisible by the data shards, ensuring shards are padded appropriately.                      |
 
 ## Detailed Description of Tests
 
-### 1. `test_shard_key_valid_input`
+### 1. `test_valid_encoding`
 
-- **Input**: 64-byte key, 5 data shards, 3 parity shards.
-- **Objective**: Verify that the key is correctly divided into the appropriate data and parity shards. It checks that the number of generated shards is correct and that each shard contains the expected data.
+- **Input**: Key (10 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies that the key is correctly encoded into data and parity shards. It ensures that the number of shards matches the expected count and that their sizes are calculated as expected.
 
-### 2. `test_shard_key_edge_case_empty_key`
+### 2. `test_empty_byte_array`
 
-- **Input**: Empty key, 5 data shards, 3 parity shards.
-- **Objective**: Test the behavior when the key is empty. Even with an empty key, it checks that 8 shards are generated and that all are empty.
+- **Input**: Empty key, 3 data shards, 2 parity shards.
+- **Objective**: Ensures that encoding fails with an `EmptyDataError` when the key is empty, and no shards are generated.
 
-### 3. `test_shard_key_edge_case_small_key`
+### 3. `test_invalid_shard_sizes`
 
-- **Input**: 3-byte key, 5 data shards, 3 parity shards.
-- **Objective**: Test the behavior with a key smaller than the size of the individual shards. It verifies that the first shards contain the key data and that the remaining shards are filled as expected.
+- **Input**: Key (5 bytes), 2 data shards, 3 parity shards.
+- **Objective**: Verifies that an invalid configuration, where the number of parity shards exceeds the data shards, triggers the `InvalidShardsSize` error.
 
-### 4. `test_reconstruct_key_valid_input`
+### 4. `test_zero_data_shards`
 
-- **Input**: 64-byte key, 5 data shards, 3 parity shards.
-- **Objective**: Verify that the original key can be correctly reconstructed using all generated shards (without losses).
+- **Input**: Key (5 bytes), 0 data shards, 3 parity shards.
+- **Objective**: Ensures that encoding fails with an `InvalidShardsSize` error when no data shards are provided.
 
-### 5. `test_reconstruct_key_with_missing_shards`
+### 5. `test_zero_parity_shards`
 
-- **Input**: 64-byte key, with 2 missing shards.
-- **Objective**: Verify that the key can be reconstructed even if up to 2 shards are missing (the maximum number of missing shards recoverable with the 3 parity shards).
+- **Input**: Key (5 bytes), 3 data shards, 0 parity shards.
+- **Objective**: Verifies that encoding fails with an `InvalidShardsSize` error when no parity shards are provided.
 
-### 6. `test_reconstruct_key_with_too_many_missing_shards`
+### 6. `test_encoding_with_exact_shards`
 
-- **Input**: 64-byte key, with 3 missing shards.
-- **Objective**: Verify that if too many shards are missing (more than can be recovered from the parity shards), the system raises an exception and fails as expected.
+- **Input**: Key (6 bytes), 3 data shards, 2 parity shards.
+- **Objective**: Verifies that encoding works correctly when the key size is divisible evenly among the data shards.
 
-### 7. `test_shard_key_with_various_shard_sizes`
+### 7. `test_encoding_with_non_divisible_shards`
 
-- **Input**: 128-byte key, with various combinations of data and parity shards (2 data + 2 parity, 4 data + 2 parity, 5 data + 3 parity, 8 data + 4 parity).
-- **Objective**: Verify that the `shard_key` function works correctly with different shard configurations, ensuring that the number of generated shards is always correct.
+- **Input**: Key (7 bytes), 3 data shards, 2 parity shards.
+- **Objective**: Ensures that encoding works when the key size is not evenly divisible among the data shards, verifying that the shards are padded as necessary.
 
 ## Running the Tests
 
-To run all the tests, make sure you have Rust installed and compile the project with the following commands:
+To execute all tests, ensure Rust is installed and run the following commands:
 
 ```bash
 cargo build
