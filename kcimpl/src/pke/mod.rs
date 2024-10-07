@@ -12,6 +12,42 @@ use crate::structures::{
     algebraics::{FiniteRing, RingModule},
     ByteArray, PolyMatrix3329, PolyVec3329,
 };
+extern crate reed_solomon_erasure;
+
+use reed_solomon_erasure::galois_8::ReedSolomon;
+
+use std::fmt;
+use std::error::Error;
+use crate::pke::SRError::EmptyDataError;
+
+// Define your custom Error enum
+#[derive(Debug)]
+pub enum SRError {
+    EmptyDataError(String),
+    ReedSolomonError(String),  // Error from Reed-Solomon library
+    InvalidShardsSize(String),    // Error for invalid key sizes
+    EncodingError(String),
+    TooManyShards(String),     // Error for invalid shard count
+}
+
+
+// Implement Display for the custom error
+impl fmt::Display for SRError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            SRError::EncodingError(ref err)=> write!(f, "EncodingError: {}", err),
+            SRError::EmptyDataError(ref err) => write!(f, "EmptyDataErrorr: {}", err),
+            SRError::ReedSolomonError(ref err) => write!(f, "ReedSolomonError: {}", err),
+            SRError::InvalidShardsSize(ref err) => write!(f, "InvalidShardsSize: {}", err),
+            SRError::TooManyShards(ref err) => write!(f, "TooManyShards: {}", err),
+        }
+    }
+}
+
+// Implement the Error trait for error handling
+impl Error for SRError {}
+
+
 
 /// Default length used for XOF
 const XOF_LEN: usize = 4000;
@@ -28,8 +64,66 @@ pub struct PKE<const N: usize, const K: usize> {
 ///throughout this document 
 /// is always 2. The values of k, du and dv vary for
 /// different security levels.
+/// TODO SR IMPLEMENTING FOR DIFFERENT KEY SIZE 512 AND ...
 
 impl<const N: usize, const K: usize> PKE<N, K> {
+
+    // Modify the function to return a Result with your custom error
+    pub fn encode_key_sr(&self, el: ByteArray, data_shards: usize, parity_shards: usize) -> Result<ByteArray, SRError> {
+        // Check for validation of element and shards
+        if el.data.is_empty() {
+            return Err(SRError::EmptyDataError("The byte array data is empty".to_string()));
+        }
+        if parity_shards > data_shards || data_shards == 0 || parity_shards == 0 {
+            return Err(SRError::InvalidShardsSize("Number of shards invalid".to_string()));
+        }
+
+        // Calcola la dimensione dei chunk
+        let chunk_size = (el.data.len() + data_shards -1) / data_shards; // Utilizza il metodo ceiling
+
+
+        // Crea gli chunks utilizzando il metodo chunks
+        let mut data_chunks: Vec<Vec<u8>> = Vec::new();
+
+        for chunk in el.chunks(chunk_size) {
+            let mut chunk_vec = chunk.to_vec();
+            // Se il chunk ha meno byte di chunk_size, riempilo con 0
+            if chunk_vec.len() < chunk_size {
+                chunk_vec.resize(chunk_size, 0); // Riempie con 0 fino alla dimensione chunk_size
+            }
+            data_chunks.push(chunk_vec); // Aggiunge il chunk (riempito o no) alla lista dei data_chunks
+        }
+
+        if el.data.len() % data_shards != 0 {
+            println!(" data chunks: {:?}", data_chunks);
+        }
+
+        // Crea un array di byte per gli shard
+        let mut shards: Vec<Vec<u8>> = vec![vec![0u8; chunk_size]; data_shards + parity_shards];
+        println!("shards {:?}", shards);
+
+        // Popola i data shards
+        for (i, chunk) in data_chunks.into_iter().enumerate() {
+            if i < data_shards {
+                shards[i].copy_from_slice(&chunk); // Copia il chunk nello shard corrispondente
+            }
+        }
+        println!("shards filled situation {:?}", shards);
+
+        // Codifica gli shard usando il metodo encode
+        let reed_solomon = ReedSolomon::new(data_shards, parity_shards)
+            .map_err(|_| SRError::InvalidShardsSize("Failed to create Reed-Solomon codec".to_string()))?;
+
+        reed_solomon.encode(&mut shards)
+            .map_err(|_| SRError::EncodingError("Failed to encode shards".to_string()))?;
+
+        // Flatten the shards into a single ByteArray
+        let encoded_data: Vec<u8> = shards.into_iter().flat_map(|s| s).collect();
+
+        Ok(ByteArray::from_bytes(&encoded_data))
+    }
+
+
     /// Kyber CPAPKE Key Generation => (secret key, public key)
     /// Algorithm 4 p. 9
     pub fn keygen(&self) -> (ByteArray, ByteArray) {
@@ -167,3 +261,134 @@ fn encrypt_then_decrypt_cpapke_768() {
 
     assert_eq!(m, dec);
 } //to finish to read this  and decrypt
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_encoding() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con chiave valida, data_shards e parity_shards corretti
+        let key = ByteArray::from_bytes(&vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);  // 10 byte
+        let data_shards = 5;
+        let parity_shards = 3;
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key.clone(), data_shards, parity_shards);
+        //println!("key original: {:?}", key);
+        // Verifica che la codifica abbia successo
+        assert!(result.is_ok(), "Expected successful encoding, but got an error.");
+        let encoded_key = result.unwrap();
+        println!(" encoded key: {:?}", encoded_key);
+
+        // Verifica che il risultato abbia la dimensione attesa
+        let chunk_size = (&key.data.len() + data_shards - 1) / data_shards;
+        let expected_len = (data_shards + parity_shards) * chunk_size;
+        assert_eq!(encoded_key.data.len(), expected_len, "Encoded data length mismatch.");
+    }
+
+    #[test]
+    fn test_empty_byte_array() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con un ByteArray vuoto
+        let key = ByteArray::new();  // Chiave vuota
+        let data_shards = 3;
+        let parity_shards = 2;
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key, data_shards, parity_shards);
+
+        // Verifica che ritorni l'errore corretto per chiave vuota
+        assert!(matches!(result, Err(SRError::EmptyDataError(_))), "Expected EmptyDataError.");
+    }
+
+    #[test]
+    fn test_invalid_shard_sizes() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con parametri di shard non validi
+        let key = ByteArray::from_bytes(&vec![1, 2, 3, 4, 5]);  // 5 byte
+        let data_shards = 2;
+        let parity_shards = 3;  // Numero di parity_shards > data_shards
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key, data_shards, parity_shards);
+
+        // Verifica che ritorni l'errore per shard non validi
+        assert!(matches!(result, Err(SRError::InvalidShardsSize(_))), "Expected InvalidShardsSize error.");
+    }
+
+    #[test]
+    fn test_zero_data_shards() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con zero data_shards
+        let key = ByteArray::from_bytes(&vec![1, 2, 3, 4, 5]);  // 5 byte
+        let data_shards = 0;
+        let parity_shards = 3;
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key, data_shards, parity_shards);
+
+        // Verifica che ritorni l'errore per data_shards = 0
+        assert!(matches!(result, Err(SRError::InvalidShardsSize(_))), "Expected InvalidShardsSize error for data_shards=0.");
+    }
+
+    #[test]
+    fn test_zero_parity_shards() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con zero parity_shards
+        let key = ByteArray::from_bytes(&vec![1, 2, 3, 4, 5]);  // 5 byte
+        let data_shards = 3;
+        let parity_shards = 0;
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key, data_shards, parity_shards);
+
+        // Verifica che ritorni l'errore per parity_shards = 0
+        assert!(matches!(result, Err(SRError::InvalidShardsSize(_))), "Expected InvalidShardsSize error for parity_shards=0.");
+    }
+
+    #[test]
+    fn test_encoding_with_exact_shards() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con una dimensione della chiave divisibile esattamente per il numero di data_shards
+        let key = ByteArray::from_bytes(&vec![1, 2, 3, 4, 5, 6]);  // 6 byte
+        let data_shards = 3;  // Divisibile esattamente
+        let parity_shards = 2;
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key, data_shards, parity_shards);
+
+        // Verifica che la codifica abbia successo
+        assert!(result.is_ok(), "Expected successful encoding, but got an error.");
+    }
+
+    #[test]
+    fn test_encoding_with_non_divisible_shards() {
+        // Inizializza un'istanza di PKE
+        let pke = PKE::<256, 2>::init(3329, 2, 10, 4);
+
+        // Test con una dimensione della chiave non divisibile esattamente per il numero di data_shards
+        let key = ByteArray::from_bytes(&vec![1, 2, 3, 4, 5, 6, 7]);  // 7 byte
+        let data_shards = 3;  // Non divisibile esattamente
+        let parity_shards = 2;
+
+        // Chiama il metodo encode_key_sr
+        let result = pke.encode_key_sr(key, data_shards, parity_shards);
+
+        // Verifica che la codifica abbia successo
+        assert!(result.is_ok(), "Expected successful encoding, but got an error.");
+    }
+}

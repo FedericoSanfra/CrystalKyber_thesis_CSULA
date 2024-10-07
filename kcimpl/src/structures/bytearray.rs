@@ -3,6 +3,8 @@
 //! ByteArray used for exchange and encoding/decoding
 
 use rand::prelude::*;
+use crate::pke::SRError;
+
 /// A struct representing an array of bytes
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ByteArray {
@@ -17,12 +19,27 @@ impl ByteArray{
             data: Vec::new(),
         }
     }
+
     //generate a byte array from a slice of bytes
     pub fn from_bytes(data: &[u8])-> Self{
         Self {
             data: data.to_vec(),
         }
     }
+    /// I need size of the key for shards generation in Solomon Reed encoding
+    pub fn size(&self)-> usize {
+        self.data.len()
+    }
+
+    // Metodo per ottenere i chunks della chiave nello sharding
+    pub fn chunks(&self, chunk_size: usize) -> Vec<Vec<u8>> {
+
+        self.data
+            .chunks(chunk_size)
+            .map(|chunk| chunk.to_vec()) // Restituisce un Vec<u8>
+            .collect()
+    }
+
 
     //generate a byte array of size len filled with random values
     pub fn random(len: usize) -> Self {
