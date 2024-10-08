@@ -131,9 +131,10 @@ impl<const N: usize, const K: usize> PKE<N, K> {
     }
 
     ///reconstruction algorithm Solomon-Reed
+    /// Reconstruction algorithm Solomon-Reed with verification
     pub fn reconstruct_key_sr(
         &self,
-        encoded_data: Vec<Option<Vec<u8>>>, // Cambiato a Vec<Option<Vec<u8>>>, perchè è un passaggio diretto
+        mut encoded_data: Vec<Option<Vec<u8>>>, // Cambiato a Vec<Option<Vec<u8>>>, perchè è un passaggio diretto
         data_shards: usize,
         parity_shards: usize,
     ) -> Result<ByteArray, SRError> {
@@ -145,28 +146,47 @@ impl<const N: usize, const K: usize> PKE<N, K> {
             return Err(SRError::InvalidShardsSize("Invalid number of shards".to_string()));
         }
 
-        println!("Data len inizio: {:?}", encoded_data.len());
-
-        // Calcola la dimensione di ogni shard
-        let total_shards = data_shards + parity_shards;
-
-
-        println!("Shards before reconstruction: {:?}", encoded_data);
-        let mut shards= encoded_data.clone();
-
         // Crea il codec Reed-Solomon
         let reed_solomon = ReedSolomon::new(data_shards, parity_shards)
             .map_err(|_| SRError::InvalidShardsSize("Failed to create Reed-Solomon codec".to_string()))?;
 
+        // Prima verifica la validità dei dati
+        let valid_shards: Vec<&[u8]> = encoded_data
+            .iter()
+            .filter_map(|shard| shard.as_deref()) // Trasforma Option<Vec<u8>> in &[u8]
+            .collect();
+
+        if reed_solomon.verify(&valid_shards).unwrap_or(false) {
+            println!("I dati sono validi, nessuna ricostruzione necessaria.");
+            // I dati sono validi, ritorna i data shards originali
+            let mut original_data = Vec::new();
+            for shard in &encoded_data[..data_shards] {
+                if let Some(data) = shard {
+                    original_data.extend(data);
+                } else {
+                    return Err(SRError::ReconstructionError("Missing data shard during verification".to_string()));
+                }
+            }
+
+            // Rimuovi eventuali padding alla fine
+            let data_len = original_data.len() - original_data.iter().rev().take_while(|&&b| b == 0).count();
+            original_data.truncate(data_len);
+
+            return Ok(ByteArray::from_bytes(&original_data));
+        }
+
+        // Se la verifica fallisce, tenta di ricostruire i dati
+        println!("Dati non validi, tentativo di ricostruzione...");
+
         // Ricostruisce i dati mancanti
-        reed_solomon.reconstruct(&mut shards)
+        reed_solomon.reconstruct(&mut encoded_data)
             .map_err(|_| SRError::ReconstructionError("Failed to reconstruct shards".to_string()))?;
 
-        println!("Shards after reconstruction: {:?}", shards);
+        println!("Shards after reconstruction: {:?}", encoded_data);
 
-        // Estrai i data shards
+        // Estrai i data shards ricostruiti
         let mut reconstructed_data = Vec::new();
-        for shard in &shards[..data_shards] {
+        for shard in &encoded_data[..data_shards] {
             if let Some(data) = shard {
                 reconstructed_data.extend(data);
             } else {
@@ -176,7 +196,6 @@ impl<const N: usize, const K: usize> PKE<N, K> {
 
         println!("Reconstructed data: {:?}", reconstructed_data);
 
-
         // Rimuovi eventuali padding alla fine
         let data_len = reconstructed_data.len() - reconstructed_data.iter().rev().take_while(|&&b| b == 0).count();
         reconstructed_data.truncate(data_len);
@@ -185,6 +204,7 @@ impl<const N: usize, const K: usize> PKE<N, K> {
         // Converte in ByteArray usando il metodo from_bytes
         Ok(ByteArray::from_bytes(&reconstructed_data))
     }
+
 
 
     /// Kyber CPAPKE Key Generation => (secret key, public key)
@@ -484,13 +504,14 @@ mod decoding_tests {
             .map(|chunk| Some(chunk.to_vec()))
             .collect();
 
+
         // Simula la perdita di 2 shards:
         // Perdita del primo data shard (posizione 0)
         shards[0] = None; // Perdita del primo shard
 
         // Perdita di uno dei parity shards (posizione 5)
         shards[5] = None; // Perdita del sesto shard (uno dei parity shards)
-        shards[6]=None;
+        shards[3]=None;
 
         println!("Before reconstruction: {:?}", shards);
         // Chiama il metodo reconstruct_key_sr, passando direttamente gli shards con i None
@@ -504,9 +525,6 @@ mod decoding_tests {
         // Verifica che la ricostruzione abbia successo, poiché ci sono ancora sufficienti parity shards per recuperare i dati
         assert!(result.is_ok(), "Expected successful reconstruction, but got an error.");
         let reconstructed_key = result.unwrap();
-
-        // Convert back to normal shard arrangement
-        let result: Vec<_> = reconstructed_key.into_iter().filter_map(|x| x).collect();
 
         // Verifica che il risultato corrisponda alla chiave originale
         assert_eq!(reconstructed_key.data, key.data, "Reconstructed data mismatch.");
