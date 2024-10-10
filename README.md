@@ -58,6 +58,73 @@ This section outlines the unit tests verifying the correct implementation of key
 - **Input**: Key (7 bytes), 3 data shards, 2 parity shards.
 - **Objective**: Ensures that encoding works when the key size is not evenly divisible among the data shards, verifying that the shards are padded as necessary.
 
+# Test Suite for PKE Decoding Reed-Solomon
+
+## Description
+
+This section outlines the unit tests verifying the correct implementation of key reconstruction using the Reed-Solomon decoder. These tests are designed using **white-box testing**, covering edge cases and other relevant scenarios to ensure robustness.
+
+## Test Table
+
+| #  | Test Name                                      | Tested Range                                     | Description                                                                                                                                              |
+|----|------------------------------------------------|--------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | `test_valid_reconstruction_with_loss`          | Key: 10 bytes, 5 data shards, 3 parity shards    | Verifies successful reconstruction when three shards (two data shards, one parity shard) are missing.                                                    |
+| 2  | `test_reconstruction_with_different_key_lengths` | Keys: 20 bytes, 5 data shards, 3 parity shards  | Tests reconstruction of a key of different length (20 bytes), with the loss of 2 shards, ensuring correct behavior across different input sizes.         |
+| 3  | `test_reconstruction_with_corrupted_shards`    | Key: 10 bytes, 5 data shards, 3 parity shards    | Verifies that reconstruction fails when two shards (one data and one parity shard) are corrupted.                                                         |
+| 4  | `test_reconstruction_without_loss`             | Key: 10 bytes, 5 data shards, 3 parity shards    | Verifies that reconstruction succeeds when no shards are lost.                                                                                            |
+| 5  | `test_reconstruction_with_excessive_loss`      | Key: 10 bytes, 5 data shards, 3 parity shards    | Verifies that reconstruction fails when the number of lost shards exceeds the error tolerance of the Reed-Solomon code.                                   |
+| 6  | `test_reconstruction_with_different_shard_count` | Key: 15 bytes, 6 data shards, 4 parity shards   | Tests reconstruction with a different number of shards (6 data shards, 4 parity shards), simulating a loss of three shards (2 parity, 1 data).           |
+| 7  | `test_reconstruction_with_all_parity_shards_missing` | Key: 20 bytes, 5 data shards, 3 parity shards | Verifies successful reconstruction when all parity shards are missing but all data shards are available.                                                  |
+| 8  | `test_reconstruction_with_all_data_shards_missing` | Key: 20 bytes, 5 data shards, 3 parity shards  | Verifies that reconstruction fails when all data shards are missing.                                                                                      |
+| 9  | `test_reconstruction_with_random_loss`         | Key: 20 bytes, 6 data shards, 4 parity shards    | Verifies the decoder's behavior with randomly lost shards (3 random shards) to simulate real-world data loss scenarios.                                    |
+
+## Detailed Description of Tests
+
+### 1. `test_valid_reconstruction_with_loss`
+
+- **Input**: Key (10 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies successful key reconstruction when 3 shards (2 data shards and 1 parity shard) are lost.
+
+### 2. `test_reconstruction_with_different_key_lengths`
+
+- **Input**: Key (20 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies correct key reconstruction for a larger key (20 bytes), simulating the loss of 2 shards (1 data shard and 1 parity shard).
+
+### 3. `test_reconstruction_with_corrupted_shards`
+
+- **Input**: Key (10 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies that reconstruction fails when 2 shards (1 data shard and 1 parity shard) are corrupted, ensuring that invalid shards lead to reconstruction errors.
+
+### 4. `test_reconstruction_without_loss`
+
+- **Input**: Key (10 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies successful key reconstruction when no shards are lost, ensuring that the reconstruction succeeds without data loss.
+
+### 5. `test_reconstruction_with_excessive_loss`
+
+- **Input**: Key (10 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies that reconstruction fails when the number of lost shards (4 lost shards) exceeds the error tolerance of the Reed-Solomon code.
+
+### 6. `test_reconstruction_with_different_shard_count`
+
+- **Input**: Key (15 bytes), 6 data shards, 4 parity shards.
+- **Objective**: Tests successful key reconstruction with a different number of data and parity shards, simulating the loss of 3 shards (2 parity shards and 1 data shard).
+
+### 7. `test_reconstruction_with_all_parity_shards_missing`
+
+- **Input**: Key (20 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies that the key is successfully reconstructed when all parity shards are lost, but all data shards are present.
+
+### 8. `test_reconstruction_with_all_data_shards_missing`
+
+- **Input**: Key (20 bytes), 5 data shards, 3 parity shards.
+- **Objective**: Verifies that reconstruction fails when all data shards are lost, ensuring that the absence of data shards leads to a failed reconstruction.
+
+### 9. `test_reconstruction_with_random_loss`
+
+- **Input**: Key (20 bytes), 6 data shards, 4 parity shards.
+- **Objective**: Verifies the decoder's behavior when 3 random shards are lost, simulating real-world data loss and ensuring robustness in handling random loss scenarios.
+
 ## Running the Tests
 
 To execute all tests, ensure Rust is installed and run the following commands:
@@ -65,3 +132,4 @@ To execute all tests, ensure Rust is installed and run the following commands:
 ```bash
 cargo build
 cargo test
+
