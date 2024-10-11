@@ -125,6 +125,28 @@ This section outlines the unit tests verifying the correct implementation of key
 - **Input**: Key (20 bytes), 6 data shards, 4 parity shards.
 - **Objective**: Verifies the decoder's behavior when 3 random shards are lost, simulating real-world data loss and ensuring robustness in handling random loss scenarios.
 
+# Integration Test: Public Key Encryption (PKE) with Solomon-Reed Encoding
+
+## Overview
+This integration test verifies the functionality of a hybrid system that uses the Kyber512 public key encryption (PKE) algorithm in combination with Solomon-Reed encoding for error correction. The test simulates a scenario where Bob sends an encrypted message to Alice using her public key, while Alice recovers the message with her secret key after a simulated shard loss, using Solomon-Reed for data reconstruction.
+
+### Test Flow
+1. **Key Generation**: Alice generates a key pair (`pk`, `sk`) using Kyber512's `keygen` function. The public key (`pk`) is published, while the secret key (`sk`) remains private.
+
+2. **Message and Randomness**: Bob generates a random message (`m`) and random data (`r`), which will be used as input to the encryption process.
+
+3. **Encryption**: Bob uses Alice's public key to encrypt the message using Kyber512's `encrypt` function, producing an encrypted message (`enc`).
+
+4. **Solomon-Reed Encoding**: The encrypted message is then encoded using Solomon-Reed encoding with 16 data shards and 6 parity shards. This step splits the encrypted message into chunks and adds redundancy for error correction.
+
+5. **Shard Loss Simulation**: Three shards (two data shards and one parity shard) are intentionally lost to simulate data corruption or network failure.
+
+6. **Reconstruction**: Solomon-Reed's `reconstruct_key_sr` function is used to reconstruct the missing shards, allowing recovery of the full encoded message.
+
+7. **Decryption**: Alice uses her secret key (`sk`) to decrypt the reconstructed message, recovering the original plaintext message.
+
+8. **Assertion**: The test checks that the original message (`m`) and the decrypted message (`dec`) are identical, confirming the correct behavior of the encryption, encoding, and reconstruction process.
+
 ## Running the Tests
 
 To execute all tests, ensure Rust is installed and run the following commands:
