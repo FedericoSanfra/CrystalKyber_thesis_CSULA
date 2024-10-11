@@ -27,6 +27,29 @@ impl<const N: usize, const K: usize> KEM<N, K> {
         (sk, pk)
     }
 
+    pub fn encoding_sr(&self, message: ByteArray, data_shards:usize, parity_shards: usize)-> ByteArray{
+        let result=self.pke.encode_key_sr(message, data_shards, parity_shards);
+        result.unwrap()
+    }
+
+    pub fn decoding_sr(&self, encoded: ByteArray, data_shards: usize, parity_shards: usize) -> ByteArray{
+
+        let chunk_size = encoded.data.len() / (data_shards + parity_shards);
+
+        ///SK DATA SHARDS LOSS SIMULATION
+        let mut shards: Vec<Option<Vec<u8>>> = encoded.data.chunks(chunk_size)
+            .map(|chunk| Some(chunk.to_vec()))
+            .collect();
+
+        // Simula la perdita di 3 shards (2 data shards e 1 parity shard)
+        shards[0] = None; // Perdita del primo data shard
+        shards[5] = None; // Perdita del sesto shard (parity shard)
+        shards[3] = None; // Perdita di un altro data shard
+
+        let result = self.pke.reconstruct_key_sr(shards, data_shards, parity_shards);
+        result.unwrap() //reconstructed data
+    }
+
     /// Encryption : public key  => ciphertext, Shared Key
     /// Algorithm 8 p. 11
     pub fn encaps(&self, pk: &ByteArray) -> (ByteArray, ByteArray) {

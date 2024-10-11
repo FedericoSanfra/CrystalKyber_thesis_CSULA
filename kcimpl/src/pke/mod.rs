@@ -18,7 +18,7 @@ use reed_solomon_erasure::galois_8::ReedSolomon;
 
 use std::fmt;
 use std::error::Error;
-use crate::pke::SRError::EmptyDataError;
+
 
 // Define your custom Error enum
 #[derive(Debug)]
@@ -68,7 +68,6 @@ pub struct PKE<const N: usize, const K: usize> {
 ///throughout this document 
 /// is always 2. The values of k, du and dv vary for
 /// different security levels.
-/// TODO SR IMPLEMENTING FOR DIFFERENT KEY SIZE 512 AND ...
 
 impl<const N: usize, const K: usize> PKE<N, K> {
 
@@ -104,7 +103,7 @@ impl<const N: usize, const K: usize> PKE<N, K> {
 
         // Crea un array di byte per gli shard
         let mut shards: Vec<Vec<u8>> = vec![vec![0u8; chunk_size]; data_shards + parity_shards];
-        println!("shards {:?}", shards);
+        //println!("shards {:?}", shards);
 
         // Popola i data shards
         for (i, chunk) in data_chunks.into_iter().enumerate() {
@@ -112,7 +111,7 @@ impl<const N: usize, const K: usize> PKE<N, K> {
                 shards[i].copy_from_slice(&chunk); // Copia il chunk nello shard corrispondente
             }
         }
-        println!("shards filled situation {:?}", shards);
+        //println!("shards filled situation {:?}", shards);
 
         // Codifica gli shard usando il metodo encode
         let reed_solomon = ReedSolomon::new(data_shards, parity_shards)
@@ -124,7 +123,7 @@ impl<const N: usize, const K: usize> PKE<N, K> {
         // Flatten the shards into a single ByteArray
         let encoded_data: Vec<u8> = shards.into_iter().flat_map(|s| s).collect();
 
-        println!("Encoded data: {:?}", encoded_data);
+        //println!("Encoded data: {:?}", encoded_data);
 
 
         Ok(ByteArray::from_bytes(&encoded_data))
@@ -182,7 +181,7 @@ impl<const N: usize, const K: usize> PKE<N, K> {
         reed_solomon.reconstruct(&mut encoded_data)
             .map_err(|_| SRError::ReconstructionError("Failed to reconstruct shards".to_string()))?;
 
-        println!("Shards after reconstruction: {:?}", encoded_data);
+       // println!("Shards after reconstruction: {:?}", encoded_data);
 
         // Estrai i data shards ricostruiti
         let mut reconstructed_data = Vec::new();
@@ -194,7 +193,7 @@ impl<const N: usize, const K: usize> PKE<N, K> {
             }
         }
 
-        println!("Reconstructed data: {:?}", reconstructed_data);
+      //  println!("Reconstructed data: {:?}", reconstructed_data);
 
         // Rimuovi eventuali padding alla fine
         let data_len = reconstructed_data.len() - reconstructed_data.iter().rev().take_while(|&&b| b == 0).count();

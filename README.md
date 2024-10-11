@@ -147,6 +147,27 @@ This integration test verifies the functionality of a hybrid system that uses th
 
 8. **Assertion**: The test checks that the original message (`m`) and the decrypted message (`dec`) are identical, confirming the correct behavior of the encryption, encoding, and reconstruction process.
 
+# Integration Test: Key Encapsulation Mechanism (KEM) with Solomon-Reed Encoding
+
+## Overview
+This integration test validates the functionality of the Kyber512 Key Encapsulation Mechanism (KEM) combined with Solomon-Reed encoding for error correction and recovery. The test simulates a real-world scenario where Bob encapsulates a shared key (`k`) using Alice's public key (`pk`), sends the ciphertext (`c`) to Alice, and Alice decapsulates the ciphertext after reconstructing it with Solomon-Reed to recover the original shared key (`k_recovered`).
+
+### Test Flow
+1. **Key Generation**: Alice generates a key pair (`pk`, `sk`) using Kyber512's `keygen` function. The public key (`pk`) is published, and the secret key (`sk`) remains private.
+
+2. **Encapsulation**: Bob uses Alice's public key (`pk`) to generate a shared key (`k`) and a ciphertext (`c`) using the `encaps` function.
+
+3. **Solomon-Reed Encoding**: The ciphertext (`c`) is encoded using Solomon-Reed encoding with 16 data shards and 6 parity shards. This adds redundancy to the ciphertext for recovery in case of shard loss.
+
+4. **Simulated Shard Loss**: The test simulates the loss of shards by removing some shards from the encoded data, simulating possible data corruption or network failure.
+
+5. **Reconstruction**: Using Solomon-Reed's `decoding_sr` function, Alice reconstructs the lost shards and recovers the full ciphertext from the encoded data.
+
+6. **Decapsulation**: Alice uses her secret key (`sk`) and the reconstructed ciphertext (`c`) to recover the shared key (`k_recovered`) using the `decaps` function.
+
+7. **Assertion**: The test asserts that the shared key Bob generated (`k`) and the shared key Alice recovered (`k_recovered`) are identical, confirming the correct functionality of the encapsulation, encoding, reconstruction, and decapsulation process.
+
+
 ## Running the Tests
 
 To execute all tests, ensure Rust is installed and run the following commands:
