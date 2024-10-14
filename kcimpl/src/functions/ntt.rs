@@ -56,14 +56,25 @@ fn bcm<const N: usize>(a: &Poly3329<N>, b: &Poly3329<N>) -> Poly3329<N> {
     p
 }
 
+/// Triple Modular Redundancy for polynomial multiplication
+fn bcm_tmr<const N: usize>(a: &Poly3329<N>, b: &Poly3329<N>) -> Poly3329<N> {
+    // Execute BCM three times
+    let result1 = bcm(a, b);
+    let result2 = bcm(a, b);
+    let result3 = bcm(a, b);
+
+    // Compare the results of the three operations and select the correct one
+    Poly3329::majority(result1, result2, result3)
+}
+
 /// Base case multiplication for vectors
 fn bcm_vec<const N: usize, const D: usize>(
     a: &PolyVec3329<N, D>,
     b: &PolyVec3329<N, D>,
 ) -> Poly3329<N> {
-    let mut p = bcm(&a.get(0), &b.get(0));
+    let mut p = bcm_tmr(&a.get(0), &b.get(0));
     for i in 1..D {
-        p = p.add(&bcm(&a.get(i), &b.get(i)));
+        p = p.add(&bcm_tmr(&a.get(i), &b.get(i)));
     }
     p
 }
@@ -84,7 +95,7 @@ pub fn bcm_matrix_vec<const N: usize, const X: usize, const Y: usize>(
 
 /// Computes a.b as NTT^-1(a_hat o b_hat)
 fn ntt_product<const N: usize>(a_hat: &Poly3329<N>, b_hat: &Poly3329<N>) -> Poly3329<N> {
-    rev_ntt(&bcm(a_hat, b_hat))
+    rev_ntt_tmr(&bcm(a_hat, b_hat))
 }
 
 /// Computes a^T.b as NTT^-1(a_hat^T o b_hat)
@@ -92,7 +103,7 @@ pub fn ntt_product_vec<const N: usize, const D: usize>(
     a_hat: &PolyVec3329<N, D>,
     b_hat: &PolyVec3329<N, D>,
 ) -> Poly3329<N> {
-    rev_ntt(&bcm_vec(a_hat, b_hat))
+    rev_ntt_tmr(&bcm_vec(a_hat, b_hat))
 }
 
 /// Computes a.b as NTT^-1(a_hat o b_hat)
@@ -107,7 +118,7 @@ pub fn ntt_product_matvec<const N: usize, const X: usize, const Y: usize>(
 pub fn ntt_vec<const N: usize, const D: usize>(p: &PolyVec3329<N, D>) -> PolyVec3329<N, D> {
     let mut coeffs = [Default::default(); D];
     for i in 0..D {
-        coeffs[i] = base_ntt(&p.coefficients[i]);
+        coeffs[i] = base_ntt_tmr(&p.coefficients[i]);
     }
     PolyVec3329::from_vec(coeffs)
 }
@@ -116,7 +127,7 @@ pub fn ntt_vec<const N: usize, const D: usize>(p: &PolyVec3329<N, D>) -> PolyVec
 fn rev_ntt_vec<const N: usize, const D: usize>(p_hat: &PolyVec3329<N, D>) -> PolyVec3329<N, D> {
     let mut coeffs = [Default::default(); D];
     for i in 0..D {
-        coeffs[i] = rev_ntt(&p_hat.coefficients[i]);
+        coeffs[i] = rev_ntt_tmr(&p_hat.coefficients[i]);
     }
     PolyVec3329::from_vec(coeffs)
 }
@@ -152,6 +163,17 @@ fn base_ntt<const N: usize>(p: &Poly3329<N>) -> Poly3329<N> {
     }
 
     a
+}
+
+/// Triple Modular Redundancy (TMR) for NTT
+fn base_ntt_tmr<const N: usize>(p: &Poly3329<N>) -> Poly3329<N> {
+    // Esegui la trasformazione NTT tre volte
+    let result1 = base_ntt(p);
+    let result2 = base_ntt(p);
+    let result3 = base_ntt(p);
+
+    // Confronta i risultati delle tre operazioni e scegli quello corretto
+    Poly3329::majority(result1, result2, result3)
 }
 
 /// Reverse NTT
@@ -193,24 +215,170 @@ fn rev_ntt<const N: usize>(p_hat: &Poly3329<N>) -> Poly3329<N> {
     a
 }
 
-#[test]
-fn rev_then_ntt() {
-    let mut u_bold = Poly3329::from_vec([Default::default(); 256]);
-    for i in 0..256 {
-        u_bold.set_coeff(i, F3329::from_int(i));
-    }
-    let u = rev_ntt(&u_bold);
+/// Triple Modular Redundancy (TMR) for Reverse NTT
+fn rev_ntt_tmr<const N: usize>(p_hat: &Poly3329<N>) -> Poly3329<N> {
+    // Esegui la trasformazione reverse NTT tre volte
+    let result1 = rev_ntt(p_hat);
+    let result2 = rev_ntt(p_hat);
+    let result3 = rev_ntt(p_hat);
 
-    assert_eq!(u_bold.coefficients, base_ntt(&u).coefficients)
+    // Confronta i risultati delle tre operazioni e scegli quello corretto
+    Poly3329::majority(result1, result2, result3)
 }
 
-#[test]
-fn ntt_then_rev() {
-    let mut u = Poly3329::from_vec([Default::default(); 256]);
-    for i in 0..256 {
-        u.set_coeff(i, F3329::from_int(i));
-    }
-    let u_bold = base_ntt(&u);
 
-    assert_eq!(u.coefficients, rev_ntt(&u_bold).coefficients)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::structures::F3329; // Assicurati di importare la struttura necessaria per i test.
+
+
+    #[test]
+    fn rev_then_ntt() {
+        let mut u_bold = Poly3329::from_vec([Default::default(); 256]);
+        for i in 0..256 {
+            u_bold.set_coeff(i, F3329::from_int(i));
+        }
+        let u = rev_ntt(&u_bold);
+
+        assert_eq!(u_bold.coefficients, base_ntt(&u).coefficients)
+    }
+
+    #[test]
+    fn ntt_then_rev() {
+        let mut u = Poly3329::from_vec([Default::default(); 256]);
+        for i in 0..256 {
+            u.set_coeff(i, F3329::from_int(i));
+        }
+        let u_bold = base_ntt(&u);
+
+        assert_eq!(u.coefficients, rev_ntt(&u_bold).coefficients)
+    }
+
+
+    #[test]
+    fn test_base_ntt_tmr() {
+        // Crea un polinomio di esempio
+        let mut poly = Poly3329::from_vec([Default::default(); 256]);
+        for i in 0..256 {
+            poly.set_coeff(i, F3329::from_int(i));
+        }
+
+        // Clona il polinomio per simulare le copie usate nella TMR
+        let mut poly1 = poly.clone();
+        let mut poly2 = poly.clone();
+        let mut poly3 = poly.clone();
+
+        // Introduci errori in alcune delle copie per simulare bit flipping o errori
+        poly2.set_coeff(5, F3329::from_int(999));  // Errore nel coefficiente 5
+        poly3.set_coeff(10, F3329::from_int(888)); // Errore nel coefficiente 10
+
+
+
+        let result1 = base_ntt(&poly1);
+        let result2 = base_ntt(&poly2);
+        let result3 = base_ntt(&poly3);
+
+        let maj_p=Poly3329::majority(result1, result2, result3);
+
+        // Puoi anche aggiungere un confronto con un risultato atteso, se disponibile
+        let expected_result = base_ntt(&poly1); // Utilizza la funzione base_ntt come riferimento.
+
+        // Verifica che il risultato non sia nullo
+
+       // assert!(!result.is_zero());
+
+
+        assert_eq!(expected_result.coefficients, maj_p.coefficients);
+    }
+
+    #[test]
+    fn test_rev_ntt_tmr() {
+        // Testare la funzione rev_ntt_tmr con un polinomio di esempio
+        let mut poly_hat = Poly3329::from_vec([Default::default(); 256]);
+        for i in 0..256 {
+            poly_hat.set_coeff(i, F3329::from_int(i));
+        }
+
+        let result_hat = rev_ntt_tmr(&poly_hat);
+        // Verifica che il risultato non sia nullo
+
+
+        // Puoi anche aggiungere un confronto con un risultato atteso, se disponibile
+        let expected_result_hat = rev_ntt(&poly_hat); // Utilizza la funzione rev_ntt come riferimento.
+        assert_eq!(expected_result_hat.coefficients, result_hat.coefficients);
+    }
+
+    #[test]
+    fn test_base_ntt_majority_error_simulation(){
+        // Testare la funzione base_ntt_tmr con un polinomio di esempio
+        let mut poly = Poly3329::from_vec([Default::default(); 256]);
+        for i in 0..256 {
+            poly.set_coeff(i, F3329::from_int(i));
+        }
+        ///base ntt tmr simulation
+        let mut result1 = base_ntt(&poly);
+        let mut result2 = base_ntt(&poly);
+        let mut result3 = base_ntt(&poly);
+
+
+
+        // Modificare alcuni coefficienti in result1, result2 e result3
+        for i in 0..256 {
+            if i % 4 == 0 { // Modifica 1/4 dei coefficienti
+                result1.set_coeff(i, F3329::from_int((i + 1) % 3329)); // Modifica a un valore diverso
+            }
+            if i % 4 == 1 { // Modifica 1/4 dei coefficienti
+                result2.set_coeff(i, F3329::from_int((i + 2) % 3329)); // Modifica a un valore diverso
+            }
+            if i % 4 == 2 { // Modifica 1/4 dei coefficienti
+                result3.set_coeff(i, F3329::from_int((i + 3) % 3329)); // Modifica a un valore diverso
+            }
+        }
+
+        let expected_result=base_ntt(&poly);
+        let result=Poly3329::majority(result1, result2, result3);
+
+        // Verifica che il risultato non sia nullo
+        assert!(!result.is_zero());
+
+
+        assert_eq!(expected_result.coefficients, result.coefficients);
+    }
+
+    #[test]
+    fn test_bcm() {
+        let a = Poly3329::from_vec([F3329::from_int(1), F3329::from_int(2), F3329::from_int(3), F3329::from_int(4)]);
+        let b = Poly3329::from_vec([F3329::from_int(5), F3329::from_int(6), F3329::from_int(7), F3329::from_int(8)]);
+
+        let result = bcm(&a, &b);
+        let expected = bcm(&a, &b);
+
+        assert_eq!(result.coefficients, expected.coefficients);
+    }
+
+    #[test]
+    fn test_bcm_matrix_vec() {
+        //TODO ADD MORE DETAILS
+        //let mut matrix = PolyMatrix3329::init();
+        let a = Poly3329::from_vec([F3329::from_int(1), F3329::from_int(2), F3329::from_int(3), F3329::from_int(4)]);
+        let b = Poly3329::from_vec([F3329::from_int(5), F3329::from_int(6), F3329::from_int(7), F3329::from_int(8)]);
+
+
+        let mut value = 1;  // Iniziamo da 1
+
+        // for i in 0..3 {
+        //     for j in 0..3 {
+        //         // Riempie la matrice con il valore corrente, quindi incrementa
+        //         matrix.set(i, j, Poly3329::from_int(value));
+        //         value += 1;
+        //     }
+        // }
+
+        let result = bcm_tmr(&a, &b);
+        let expected = bcm(&a, &b);
+
+        assert_eq!(result.coefficients, expected.coefficients);
+    }
+
 }

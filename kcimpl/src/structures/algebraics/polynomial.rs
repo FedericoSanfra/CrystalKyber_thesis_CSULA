@@ -153,6 +153,25 @@ impl<T, const N: usize> Polynomial<T, N> where T: FiniteField + Clone + Default 
         Self::from_vec([Default::default();N])
     }
 
+    pub fn majority(a: Self, b: Self, c: Self) -> Self {
+        let mut result = Self::init();
+
+        for i in 0..N {
+            let coeff_a = a[i]; // Utilizzo di self[index] per accedere ai coefficienti
+            let coeff_b = b[i];
+            let coeff_c = c[i];
+
+            // Se almeno due coefficienti coincidono, usa quello
+            if coeff_a == coeff_b || coeff_a == coeff_c {
+                result.set_coeff(i, coeff_a);
+            } else {
+                result.set_coeff(i, coeff_b); // coeff_b == coeff_c
+            }
+        }
+
+        result
+    }
+
     ///Return dimension of the Rq module
     pub fn dimension() -> usize {
         N
