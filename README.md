@@ -16,6 +16,19 @@ The provided Rust code implements an Additive White Gaussian Noise (AWGN) channe
 | `test_execute_low_noise()`              | Tests behavior under low noise conditions (40 dB), expecting minimal changes.      | Symbol vector: `[-1.0, 1.0, -1.0, 1.0, 1.0]` | Minimal variations from originals    | Verifies minimal noise effect                          |
 | `test_execute_empty_vector()`           | Tests execution on an empty vector, expecting an empty output.                    | Symbol vector: `[]`              | Noisy output: `[]`                 | Ensures robustness against empty input vectors        |
 
+# Overview of the RSC Code
+
+The provided Rust code implements a Recursive Systematic Convolutional (RSC) encoder. This encoder processes input binary vectors, computes the corresponding parity bits, and maintains its state using internal registers. It includes methods for resetting the state of the registers, pushing input bits to generate parity, terminating the encoding process to flush the registers, and executing the full encoding operation on a given input vector. A suite of unit tests is included to ensure the correctness and robustness of the implementation, covering various scenarios including normal operations, edge cases, and expected error states.
+
+# Test Cases Summary
+
+| Test Case                               | Description                                                                         | Input Range                     | Output Range                      | Parameters for White-Box Testing                      |
+|-----------------------------------------|-------------------------------------------------------------------------------------|----------------------------------|------------------------------------|------------------------------------------------------|
+| `test_reset()`                         | Verifies that the reset method correctly resets the registers to initial values.   | No input                        | Registers: `[0, 0]`               | Validates register state before and after reset       |
+| `test_push()`                          | Tests the `push` method for a single input bit, ensuring the correct parity bit is returned. | Input bit: `1` or `0`          | Parity bit (0 or 1)               | Checks register values after processing a bit         |
+| `test_terminate()`                     | Verifies that the `terminate` method returns the correct value from the last register. | No input                        | Last register value (u8)          | Validates register state before and after termination  |
+| `test_execute()`                       | Tests the complete encoding process on an input vector, ensuring correct output lengths. | Vector of bits: `[1, 1, 0, 1]` | Encoded bits length: `6`          | Checks lengths of encoded and systematic outputs       |
+
 # Running the Tests
 
 To run the tests in your Rust project, follow these steps:
