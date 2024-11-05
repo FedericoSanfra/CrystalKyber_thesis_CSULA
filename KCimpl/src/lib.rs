@@ -11,7 +11,7 @@
 //! For the KEM:
 //!
 //! ```rust
-//! use KCimpl::kyber512kem;
+//! use kcimpl::kyber512kem;
 //! let kem = kyber512kem();
 //!
 //! // Alice runs keygen, publishes pk. Value sk is secret
@@ -29,7 +29,7 @@
 //! For the PKE:
 //!
 //! ```rust
-//! use KCimpl::{kyber512pke, ByteArray};
+//! use kcimpl::{kyber512pke, ByteArray};
 //! let pke = kyber512pke();
 //!
 //! // Bob wants to send an encrypted message to Alice
@@ -55,7 +55,7 @@ mod functions;
 mod kem;
 mod pke;
 mod structures;
-
+mod turboc;
 
 pub use structures::ByteArray;
 
