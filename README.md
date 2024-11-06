@@ -29,6 +29,21 @@ The provided Rust code implements a Recursive Systematic Convolutional (RSC) enc
 | `test_terminate()`                     | Verifies that the `terminate` method returns the correct value from the last register. | No input                        | Last register value (u8)          | Validates register state before and after termination  |
 | `test_execute()`                       | Tests the complete encoding process on an input vector, ensuring correct output lengths. | Vector of bits: `[1, 1, 0, 1]` | Encoded bits length: `6`          | Checks lengths of encoded and systematic outputs       |
 
+
+# Overview of the Trellis Code
+
+Il codice Trellis implementa una macchina a stati finiti utilizzata nella decodifica di codici convoluzionali. La struttura `Trellis` è costruita per gestire le transizioni di stato e le metriche di ramo necessarie per calcolare la probabilità logaritmica di ciascuna transizione. Ogni transizione tra stati è definita in una matrice di transizioni, e le funzioni principali permettono di valutare e scegliere il miglior percorso di decodifica basato sulle metriche accumulate.
+
+# Test Cases Summary
+
+| Test Case                               | Description                                                                         | Input Range                       | Output Range                     | Parameters for White-Box Testing                       |
+|-----------------------------------------|-------------------------------------------------------------------------------------|------------------------------------|----------------------------------|-------------------------------------------------------|
+| `test_transition_to_symbols()`          | Verifica la corretta conversione da transizione a simboli associati (input e output). | State: `[0-3]`, Next state: `[0-3]` | Symbol pair `(i, o)`             | Assicura la correttezza dei simboli associati alle transizioni |
+| `test_butterfly()`                      | Testa la funzione `butterfly` per calcolare la metrica massima di ramo da stati precedenti. | Path metrics: `[-inf, inf]`, Branch metrics: `[-inf, inf]` | Max metric                          | Verifica la selezione corretta del percorso massimo |
+| `test_possible_transitions()`           | Assicura che `possible_transitions` fornisca tutte le transizioni valide secondo la matrice. | Matrice di transizioni | Array di transizioni valide | Verifica l'elenco corretto delle transizioni valide      |
+| `test_future_and_past_states()`         | Testa la corretta associazione tra stati attuali e quelli passati/futuri.           | Stato corrente `[0-3]` | Stati passati/futuri `[0-3]`      | Valida la mappatura tra stati attuali e passati/futuri |
+
+
 # Running the Tests
 
 To run the tests in your Rust project, follow these steps:
