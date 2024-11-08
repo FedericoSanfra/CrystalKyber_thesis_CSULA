@@ -44,6 +44,41 @@ Il codice Trellis implementa una macchina a stati finiti utilizzata nella decodi
 | `test_future_and_past_states()`         | Testa la corretta associazione tra stati attuali e quelli passati/futuri.           | Stato corrente `[0-3]` | Stati passati/futuri `[0-3]`      | Valida la mappatura tra stati attuali e passati/futuri |
 
 
+# SISODecoder
+
+## Overview
+
+The `SISODecoder` is a Soft-Input Soft-Output (SISO) decoder that is primarily designed for decoding convolutional codes using a trellis structure. It employs both forward and backward metrics to compute Log-Likelihood Ratios (LLRs) for each symbol, which are used in the decision-making process during decoding.
+
+The decoder operates in a recursive manner, evaluating possible state transitions for each symbol and calculating the corresponding branch metrics. These metrics, combined with the path metrics, are used to produce the final LLRs, which are then used to decode the transmitted message.
+
+### Main Components
+
+- **State Representation**: The decoder uses pairs of states, referred to as `(past_state, future_state)`, to represent the possible transitions between states in the trellis.
+
+- **Branch Metrics**: These metrics are used to evaluate the likelihood of each possible state transition for a given input symbol. They are updated for each state and used to calculate the forward and backward path metrics.
+
+- **Path Metrics**: Both forward and backward path metrics are computed to represent the cumulative metric for each possible path through the trellis.
+
+- **LLR Calculation**: For each symbol, the decoder computes the LLR, which represents the likelihood of each possible bit being transmitted.
+
+The decoder's goal is to minimize the error between the received and expected message by calculating the most likely sequence of symbols.
+
+---
+
+# Test Cases Summary
+
+The following table summarizes the test cases for the `SISODecoder`. These tests ensure the correctness of the decoder's functionality across various scenarios.
+
+| Test Case                               | Description                                                                     | Input Range                     | Output Range                      | Additional Details                                     |
+|-----------------------------------------|---------------------------------------------------------------------------------|----------------------------------|------------------------------------|--------------------------------------------------------|
+| `test_siso_decoder_creation()`          | Verifies the creation of a new `SISODecoder` instance.                          | Block size: `10`                 | `block_size: 10`, `llr.len: 10`    | Ensures the correct initialization of decoder attributes. |
+| `test_init_branch_metrics()`            | Verifies initialization of the branch metrics matrix.                           | Depth: `10`, States: `4`, Transitions: `4` | Matrix with dimensions `[depth][states][transitions]` | Checks the correct dimensions and initialization of branch metrics. |
+| `test_init_path_metric()`               | Verifies the initialization of path metrics for states and depth.              | States: `4`, Depth: `10`         | Path metrics matrix with dimensions `[states][depth]` | Ensures path metrics are initialized correctly with proper values. |
+| `test_demultiplex()`                    | Verifies the demultiplexing of a vector into a set of 3-tuples.                | Input vector: `[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]` | Vector of tuples: `[(1.0, 2.0, 0.0), (4.0, 5.0, 0.0)]` | Ensures correct splitting and assignment of vector values to tuples. |
+| `test_reset()`                          | Verifies that the decoder's metrics are reset to initial values.               | No input                         | Branch, forward, and backward metrics reset to zero or negative infinity | Ensures the decoder correctly resets its state to defaults. |
+| `test_expand_states()`                  | Verifies the expansion of state tuples into a vector.                          | State tuple: `(1, 2)`, `(3, 4)`   | Expanded vector: `[1, 2]`, `[3, 4]`  | Ensures correct expansion of state tuples into vectors. |
+
 # Running the Tests
 
 To run the tests in your Rust project, follow these steps:
