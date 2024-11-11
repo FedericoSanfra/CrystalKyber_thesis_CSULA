@@ -51,11 +51,25 @@
 
 extern crate sha3;
 
+
+// src/lib.rs
+
+
+// Re-esporta AWGN, RSC e SISODecoder direttamente, se necessario
+// pub use utils::awgn::AWGN;
+// pub use utils::rsc::RSC;
+// pub use utils::siso_decoder::SISODecoder;
+
 mod functions;
 mod kem;
 mod pke;
 mod structures;
 mod turboc;
+
+pub use turboc::awgn::AWGN;
+pub use turboc::rsc::RSC;
+pub use turboc::siso
+
 
 pub use structures::ByteArray;
 
