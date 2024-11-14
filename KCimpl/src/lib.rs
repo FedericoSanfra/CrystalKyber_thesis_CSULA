@@ -97,9 +97,47 @@
 //!         println!("vector 2 encoding: {:?} out vs exp {:?}", output_vector_2, expected_vector_2);
 //!         assert_eq!(output_vector_2, expected_vector_2);
 //! ```
+//! TURBO SISO DECODER TESTING
+//! ```rust
 //!
+//! use kcimpl::{TurboEncoder, AWGN, SISODecoder};
+//!   let interleaver = vec![0; 10];
+//!         let block_size = interleaver.len() + 2;
 //!
+//!         let mut encoder = TurboEncoder::new(interleaver.clone());
+//!         let mut channel = AWGN::new(5.0);
+//!         let mut decoder = SISODecoder::new(block_size);
 //!
+//!         let input_vector = vec![0, 1, 0, 1, 1, 0, 1, 0, 0, 0];
+//!         let encoded_vector = encoder.execute(input_vector.clone());
+//!
+//!         // Partendo dal vettore di encoded_vector che è un Vec<u8>
+//!          let mut channel_vector: Vec<u8> = encoded_vector.iter().map(|&x| x).collect();
+//!
+//!         // Ora puoi passare channel_vector come &[u8] a AWGN::convert_to_symbols
+//!         let mut channel_vector_symbols: Vec<f64> = AWGN::convert_to_symbols(&channel_vector);
+//!         channel_vector_symbols = channel.execute(&channel_vector_symbols);
+//!
+//!         let demultiplexed_vector = SISODecoder::demultiplex(channel_vector_symbols);
+//!         let mut decoded_vector = decoder.execute(demultiplexed_vector);
+//!
+//!        // Convert the decoded vector into binary form as in the original test
+//!          let binary_decoded_vector: Vec<u8> = decoded_vector.into_iter().map(|b| (b > 0.0) as u8).collect();
+//!
+//!         // Extract the bits from `encoded_vector` every 3rd element and convert it to `u8`
+//!         let encoded_bits: Vec<u8> = encoded_vector.iter().cloned().step_by(3).collect();
+//!
+//!         // Now you can assert equality between `encoded_bits` and `binary_decoded_vector`
+//!         assert_eq!(encoded_bits, binary_decoded_vector);
+//!
+//!          // Debug output for verification
+//! println!("\n--test_siso_decoder--");
+//! println!("input_vector = {:?}", input_vector);
+//! println!("encoded_vector = {:?}", encoded_vector);
+//! println!("decoded_vector = {:?}", binary_decoded_vector);
+//! ```
+//!
+//! TURBO DECODER TESTING, CYCLE COMPLETED
 //! ```rust
 //! use kcimpl::{AWGN, TurboDecoder, TurboEncoder};
 //! let interleaver = vec![9, 8, 5, 6, 2, 1, 7, 0, 3, 4];
