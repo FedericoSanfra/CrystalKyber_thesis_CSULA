@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 #[derive(Clone)]
 pub struct RSC {
-    pub(crate) registers: VecDeque<u8>,
+    pub registers: VecDeque<u8>,
 }
 
 impl RSC {
@@ -38,7 +38,7 @@ impl RSC {
     }
 
     /// Codifica un intero vettore di bit di input, restituendo il risultato e la parte sistematica
-    pub fn execute(&mut self, vector: Vec<usize>) -> (Vec<u8>, Vec<usize>) {
+    pub fn execute(&mut self, vector: Vec<usize>) -> (Vec<u8>, Vec<u8>) {
         let mut result = Vec::with_capacity(vector.len() + self.registers.len());
 
         // Esegue `push` su ciascun bit del vettore e memorizza i bit di parità
@@ -57,8 +57,10 @@ impl RSC {
             .copied()
             .chain(result[vector.len()..].iter().map(|&x| x as usize ))
             .collect();
+        // Converte il vettore di usize in u8
+        let systematic_u8: Vec<u8> = systematic.iter().map(|&x| x as u8).collect();
 
-        (result, systematic)
+        (result, systematic_u8)
     }
 }
 

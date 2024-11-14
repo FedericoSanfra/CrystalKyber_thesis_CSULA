@@ -47,20 +47,23 @@ impl TurboEncoder {
         let interleaved = self.interleave(vector.clone());
 
         // Encoder 0
-        let (output_0, _) = self.encoders[0].execute(vector.clone());
+        let (output_0, output_1) = self.encoders[0].execute(vector.clone());
+
+        // Inserimento di `output_1` nelle posizioni `0, 3, 6, ...`
+        for (i, &val) in output_1.iter().enumerate() {
+            output[i * 3] = val;
+        }
+
+        // Inserimento di `output_0` nelle posizioni `1, 4, 7, ...`
         for (i, &val) in output_0.iter().enumerate() {
-            if i % 2 == 0 {
-                output[i] = val; // Posizioni pari per Encoder 0
-            } else {
-                output[i + 1] = val; // Posizioni dispari per Encoder 0
-            }
+            output[i * 3 + 1] = val;
         }
          let commit=0;
 
         // Encoder 1
         let (output_1, _) = self.encoders[1].execute(interleaved);
         for (i, &val) in output_1.iter().enumerate() {
-            output[i + 2] = val; // Posizioni per Encoder 1 (partenza da 2)
+            output[i * 3 + 2] = val; // Posizioni per Encoder 1 (partenza da 2)
         }
 
         output
