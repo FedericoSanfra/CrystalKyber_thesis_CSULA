@@ -48,6 +48,85 @@
 //!
 //! assert_eq!(m, dec);
 //! ```
+//! ///RSC TESTING
+//! ```rust
+//!  use kcimpl::{RSC};
+//!  let mut rsc = RSC::new();
+//!
+//!   let input_vector = vec![1, 1, 0, 0, 1, 0, 1, 0, 1, 1];
+//!   let (output_vector, _) = rsc.execute(input_vector.clone());
+//!
+//!   println!("\n--test_rsc_encoder--");
+//!   println!("input_vector = {:?}", input_vector);
+//!   println!("output_vector = {:?}", output_vector);
+//!   println!("state = {:?}", rsc.registers);
+//!
+//!   assert_eq!(rsc.registers, vec![0; rsc.registers.len()]);
+//!
+//!
+//! ```
+//!
+//! //! ///TURBO ENCODER TESTING
+//! ```rust
+//!  use kcimpl::{RSC, TurboEncoder};
+//!  let interleaver = vec![8, 3, 7, 6, 9, 0, 2, 5, 1, 4];
+//!         let mut turbo_encoder = TurboEncoder::new(interleaver);
+//!
+//!         let input_vector = vec![1, 1, 0, 0, 1, 0, 1, 0, 1, 1];
+//!         let output_vector = turbo_encoder.execute(input_vector);
+//!
+//!         let expected_vector_1 = vec![1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0];
+//!         let expected_vector_2 = vec![1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1];
+//!
+//!         println!("\n--test_turbo_encoder--");
+//!         println!("output = {:?}", output_vector);
+//!
+//!         // Verifica che gli elementi alle posizioni 1, 4, 7... (1::3 in Python) corrispondano a `expected_vector_1`
+//!         let output_vector_1: Vec<u8> = output_vector.iter().enumerate()
+//!             .filter(|&(i, _)| i % 3 == 1)
+//!             .map(|(_, &val)| val)
+//!             .collect();
+//!         println!("vector 1 encoding: {:?} out vs exp {:?}", output_vector_1, expected_vector_1);
+//!         assert_eq!(output_vector_1, expected_vector_1);
+//!
+//!         // Verifica che gli elementi alle posizioni 2, 5, 8... (2::3 in Python) corrispondano a `expected_vector_2`
+//!         let output_vector_2: Vec<u8> = output_vector.iter().enumerate()
+//!             .filter(|&(i, _)| i % 3 == 2)
+//!             .map(|(_, &val)| val)
+//!             .collect();
+//!         println!("vector 2 encoding: {:?} out vs exp {:?}", output_vector_2, expected_vector_2);
+//!         assert_eq!(output_vector_2, expected_vector_2);
+//! ```
+//!
+//!
+//!
+//! ```rust
+//! use kcimpl::{AWGN, TurboDecoder, TurboEncoder};
+//! let interleaver = vec![9, 8, 5, 6, 2, 1, 7, 0, 3, 4];
+//! let mut encoder = TurboEncoder::new(interleaver.clone());
+//! let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
+//!
+//! let mut channel = AWGN::new(20.0);
+//!
+//! let input_vector: Vec<usize> = vec![1, 1, 0, 1, 1, 0, 1, 0, 1, 0];
+//! let encoded_vector = encoder.execute(input_vector.clone());
+//!
+//! let channel_vector = AWGN::convert_to_symbols(&encoded_vector);
+//! let noisy_channel_vector = channel.execute(&channel_vector);
+//!
+//! let decoded_vector: Vec<i32> = decoder.execute(noisy_channel_vector.clone())
+//!             .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+//!             .collect();
+//!
+//! println!("\n--test_turbo_decoder--");
+//! println!("input_vector = {:?}", input_vector);
+//! println!("encoded_vector = {:?}", encoded_vector);
+//! println!("decoded_vector = {:?}", decoded_vector);
+//! let encoded_bits: Vec<i32> = encoded_vector.iter().step_by(3).map(|&b| b as i32).collect();
+//!
+//!
+//! assert_eq!(encoded_bits, decoded_vector);
+//! ```
 
 extern crate sha3;
 
@@ -66,9 +145,21 @@ mod pke;
 mod structures;
 mod turboc;
 
+///TURBOC TEST RUNNING
+
 pub use turboc::awgn::AWGN;
 pub use turboc::rsc::RSC;
-pub use turboc::siso
+pub use turboc::siso_decoder::SISODecoder;
+pub use turboc::turbo_encoder::TurboEncoder;
+pub use turboc::turbo_decoder::TurboDecoder;
+
+
+
+
+
+
+
+
 
 
 pub use structures::ByteArray;

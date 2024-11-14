@@ -16,7 +16,7 @@ impl AWGN {
         let scale = 1.0 / (10.0f64.powf(noise_db / 20.0));
         AWGN { scale }
     }
-
+//da modificare BSC
     /// Applica il rumore al vettore.
     pub fn execute(&self, vector: &[f64]) -> Vec<f64> {
         let mut rng = thread_rng();

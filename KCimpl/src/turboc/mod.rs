@@ -1,6 +1,6 @@
 pub mod awgn;
 pub(crate) mod rsc;
 pub mod trellis;
-mod siso_decoder;
-mod turbo_encoder;
-mod turbo_decoder;
+pub mod siso_decoder;
+pub mod turbo_encoder;
+pub mod turbo_decoder;

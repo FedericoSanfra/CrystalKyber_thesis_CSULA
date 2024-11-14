@@ -37,10 +37,11 @@ impl SISODecoder {
 
     fn init_branch_metrics(m: usize, n: usize, depth: usize) -> Vec<Vec<Vec<f64>>> {
         vec![vec![vec![0.0; n]; m]; depth]
+        //vec![[[0.0; n]; m]; depth]
     }
 
     fn init_path_metric(m: usize, depth: usize) -> Vec<Vec<f64>> {
-        let mut matrix = vec![vec![-f64::INFINITY; depth]; m];
+        let mut matrix = vec![vec![-f64::INFINITY; m]; depth];
         for i in 0..m {
             matrix[i][0] = 0.0;
         }
@@ -51,6 +52,7 @@ impl SISODecoder {
     fn demultiplex(vector: Vec<f64>) -> Vec<(f64, f64, f64)> {
         vector.chunks(3).map(|chunk| (chunk[0], chunk[1], 0.0)).collect()
     }
+    //bcjr iterazione alpha e beta
 
     pub fn reset(&mut self) {
         self.branch_metrics = SISODecoder::init_branch_metrics(4, 4, self.block_size);
@@ -70,11 +72,13 @@ impl SISODecoder {
     }
 
     pub fn compute_forward(&mut self, k: usize, state: usize) {
+        //println!(" k: {:?}, state: {:?}", k, state);
         let past_states = SISODecoder::expand_states(&self.trellis.past_states[state]);
-
+        //println!("block size in siso decoder: {:?}", self.block_size);
 
         let forward_metrics: Vec<f64> = past_states.iter().map(|&s| self.forward_metrics[k - 1][s]).collect();
         let branch_metrics: Vec<f64> = past_states.iter().map(|&s| self.branch_metrics[k - 1][s][state]).collect();
+        //println!("forward metrics {:?}", self.forward_metrics);
 
         self.forward_metrics[k][state] = Trellis::butterfly(&forward_metrics, &branch_metrics);
     }
