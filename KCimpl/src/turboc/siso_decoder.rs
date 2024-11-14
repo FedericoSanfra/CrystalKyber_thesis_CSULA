@@ -49,7 +49,7 @@ impl SISODecoder {
     }
 
     //creiamo vettore di triple con valori x y demodulati, valori di simboli con errore + la probabilità per la metrica
-    fn demultiplex(vector: Vec<f64>) -> Vec<(f64, f64, f64)> {
+    pub fn demultiplex(vector: Vec<f64>) -> Vec<(f64, f64, f64)> {
         vector.chunks(3).map(|chunk| (chunk[0], chunk[1], 0.0)).collect()
     }
     //bcjr iterazione alpha e beta
