@@ -53,22 +53,32 @@ impl TurboDecoder {
         deinterleaved
     }
 
-    fn iterate(&mut self, vector: &[f64]) -> bool {
-        let input_tuples = Self::demultiplex(&vector[0..], &vector[1..], &self.llr_ext);
+    fn iterate(&mut self, vector: &[f64], varianza: &f64) -> bool {
+
+        // Per ottenere gli elementi con indice 0, 3, 6, ecc.
+        let group_0 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 0).map(|(_, &v)| v).collect::<Vec<_>>();
+
+        // Per ottenere gli elementi con indice 1, 4, 7, ecc.
+        let group_1 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 1).map(|(_, &v)| v).collect::<Vec<_>>();
+
+        let input_tuples = Self::demultiplex(&group_0, &group_1, &self.llr_ext);
 
         let mut llr_1 = self.decoders[0].execute(input_tuples.clone());
         for (i, llr) in llr_1.iter_mut().enumerate() {
-            *llr -= self.llr_ext[i] + 2.0 * vector[i];
+            *llr -= self.llr_ext[i] + (2.0 * vector[i])/(varianza*varianza);  //dividere per scale^2
         }
 
         let llr_interleaved = self.interleave(&llr_1);
         let input_interleaved: Vec<f64> = self.interleave(&vector.iter().step_by(3).cloned().collect::<Vec<f64>>());
 
-        let input_tuples = Self::demultiplex(&input_interleaved, &vector[2..], &llr_interleaved);
+        // Per ottenere gli elementi con indice 0, 3, 6, ecc.
+        let group_2 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 2).map(|(_, &v)| v).collect::<Vec<_>>();
+
+        let input_tuples = Self::demultiplex(&input_interleaved, &group_2, &llr_interleaved);
 
         let mut llr_2 = self.decoders[1].execute(input_tuples.clone());
         for (i, llr) in llr_2.iter_mut().enumerate() {
-            *llr -= llr_interleaved[i] + 2.0 * input_interleaved[i];
+            *llr -= llr_interleaved[i] + (2.0 * input_interleaved[i])*(varianza*varianza);
         }
 
         self.llr_ext = self.deinterleave(&llr_2);
@@ -76,9 +86,9 @@ impl TurboDecoder {
         Self::early_exit(&llr_1, &self.llr_ext)
     }
 
-    pub fn execute(&mut self, vector: Vec<f64>) -> Vec<f64> {
+    pub fn execute(&mut self, vector: Vec<f64>, varianza: &f64) -> Vec<f64> {
         for _ in 0..self.max_iter {
-            if self.iterate(&vector) {
+            if self.iterate(&vector, &varianza) {
                 break;
             }
         }
