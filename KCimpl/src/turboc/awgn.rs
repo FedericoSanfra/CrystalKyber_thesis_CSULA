@@ -2,7 +2,7 @@ use rand::prelude::*;
 use rand_distr::StandardNormal;
 
 pub struct AWGN {
-    scale: f64,
+    pub scale: f64,
 }
 
 impl AWGN {
@@ -16,6 +16,8 @@ impl AWGN {
         let scale = 1.0 / (10.0f64.powf(noise_db / 20.0));
         AWGN { scale }
     }
+    //scale^2 = sigma^2 varianza
+
 //da modificare BSC
     /// Applica il rumore al vettore.
     pub fn execute(&self, vector: &[f64]) -> Vec<f64> {

@@ -137,14 +137,15 @@
 //! println!("decoded_vector = {:?}", binary_decoded_vector);
 //! ```
 //!
-//! TURBO DECODER TESTING, CYCLE COMPLETED
+//! TURBO DECODER TESTING, CYCLE COMPLETED WITH AWGN NOISE CHANNEL
 //! ```rust
 //! use kcimpl::{AWGN, TurboDecoder, TurboEncoder};
 //! let interleaver = vec![9, 8, 5, 6, 2, 1, 7, 0, 3, 4];
 //! let mut encoder = TurboEncoder::new(interleaver.clone());
 //! let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
 //!
-//! let mut channel = AWGN::new(20.0);
+//! let mut channel = AWGN::new(-0.5);
+//! let mut varianza =channel.scale;
 //!
 //! let input_vector: Vec<usize> = vec![1, 1, 0, 1, 1, 0, 1, 0, 1, 0];
 //! let encoded_vector = encoder.execute(input_vector.clone());
@@ -152,20 +153,53 @@
 //! let channel_vector = AWGN::convert_to_symbols(&encoded_vector);
 //! let noisy_channel_vector = channel.execute(&channel_vector);
 //!
-//! let decoded_vector: Vec<i32> = decoder.execute(noisy_channel_vector.clone())
+//! let decoded_vector: Vec<i32> = decoder.execute(noisy_channel_vector.clone(), &varianza)
 //!             .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
 //!             .collect();
+//!
 //!
 //! println!("\n--test_turbo_decoder--");
 //! println!("input_vector = {:?}", input_vector);
 //! println!("encoded_vector = {:?}", encoded_vector);
 //! println!("decoded_vector = {:?}", decoded_vector);
-//! let encoded_bits: Vec<i32> = encoded_vector.iter().step_by(3).map(|&b| b as i32).collect();
 //!
+//! let encoded_bits: Vec<i32> = encoded_vector.iter().step_by(3).map(|&b| b as i32).collect();
 //!
 //! assert_eq!(encoded_bits, decoded_vector);
 //! ```
-
+//! TURBO DECODER BSC CHANNEL COMPLETE CYCLE
+//! ```rust
+//! use kcimpl::{BSC, TurboDecoder, TurboEncoder};
+//! let interleaver = vec![9, 8, 5, 6, 2, 1, 7, 0, 3, 4];
+//! let mut encoder = TurboEncoder::new(interleaver.clone());
+//! let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
+//!
+//! let mut channel = BSC::new(0.01);
+//! let mut varianza =channel.sigma;
+//!
+//! let input_vector: Vec<usize> = vec![1, 1, 0, 1, 1, 0, 1, 0, 1, 0];
+//! let encoded_vector = encoder.execute(input_vector.clone());
+//!
+//! let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+//! let bsc_channel_vector = channel.execute(&channel_vector); //canale con errore
+//!
+//! println!("channel vector: {:?}", channel_vector);
+//! println!("bsc errors vector: {:?}", bsc_channel_vector);
+//!
+//! let decoded_vector: Vec<i32> = decoder.execute(bsc_channel_vector.clone(), &varianza)
+//!             .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+//!             .collect();
+//!
+//!
+//! println!("\n--test_turbo_decoder--");
+//! println!("input_vector = {:?}", input_vector);
+//! println!("encoded_vector = {:?}", encoded_vector);
+//! println!("decoded_vector = {:?}", decoded_vector);
+//!
+//! let encoded_bits: Vec<i32> = encoded_vector.iter().step_by(3).map(|&b| b as i32).collect();
+//!
+//! assert_eq!(encoded_bits, decoded_vector);
+//! ```
 extern crate sha3;
 
 
@@ -190,6 +224,7 @@ pub use turboc::rsc::RSC;
 pub use turboc::siso_decoder::SISODecoder;
 pub use turboc::turbo_encoder::TurboEncoder;
 pub use turboc::turbo_decoder::TurboDecoder;
+pub use turboc::bsc::BSC;
 
 
 
