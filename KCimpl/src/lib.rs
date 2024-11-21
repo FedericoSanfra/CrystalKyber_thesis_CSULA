@@ -174,7 +174,7 @@
 //! let mut encoder = TurboEncoder::new(interleaver.clone());
 //! let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
 //!
-//! let mut channel = BSC::new(0.01);
+//! let mut channel = BSC::new(0.3);
 //! let mut varianza =channel.sigma;
 //!
 //! let input_vector: Vec<usize> = vec![1, 1, 0, 1, 1, 0, 1, 0, 1, 0];
@@ -200,7 +200,71 @@
 //!
 //! assert_eq!(encoded_bits, decoded_vector);
 //! ```
+//! TURBO DECODER BSC CHANNEL COMPLETE CYCLE, INTERLEAVER PRO
+//! ```rust
+//! use kcimpl::{BSC, TurboDecoder, TurboEncoder, SRandomInterleaver, interleaver};
+//!  // Parametri dell'interleaver
+//!     let k = 256; // Lunghezza della permutazione, suppongo chiave kyber dq 256 bit
+//!     let s = 12;  // Spread desiderato
+//!
+//!     // Creazione dell'interleaver
+//!     let interleaver = match SRandomInterleaver::new(k, s, 1) {
+//!         Some(interleaver) => interleaver,
+//!         None => {
+//!             println!(
+//!                 "Impossibile creare un interleaver con lunghezza = {} e spread = {}.",
+//!                 k, s
+//!             );
+//!             return;
+//!         }
+//!     };
+//!
+//!     // Stampa della permutazione generata
+//!     println!("Permutazione generata: {:?}", interleaver.permutation);
+//!
+//!     // Calcolo dello spread effettivo
+//!     let calculated_spread = interleaver.calculate_spread();
+//!     println!(
+//!         "Spread desiderato: {}, Spread calcolato: {}",
+//!         s, calculated_spread
+//!     );
+//!
+//!     // Generazione del vettore di trasposizione
+//!     let transposition_vector = interleaver::calculate_transposition(&interleaver.permutation);
+//!     println!("Vettore di trasposizione generato: {:?}", transposition_vector);
+//!
+//! ///TURBO CODE OPERATIONS
+//! let mut encoder = TurboEncoder::new(interleaver.permutation.clone());
+//! let mut decoder = TurboDecoder::new(interleaver.permutation.clone(), 2, 16);
+//!
+//! let mut channel = BSC::new(0.2);
+//! let mut varianza =channel.sigma;
+//! ///test ora con bit scorrelati in input
+//! let input_vector: Vec<usize> = interleaver::generate_binary_vector(256);
+//! let encoded_vector = encoder.execute(input_vector.clone());
+//!
+//! let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+//! let bsc_channel_vector = channel.execute(&channel_vector); //canale con errore
+//!
+//! println!("channel vector: {:?}", channel_vector);
+//! println!("bsc errors vector: {:?}", bsc_channel_vector);
+//!
+//! let decoded_vector: Vec<i32> = decoder.execute(bsc_channel_vector.clone(), &varianza)
+//!             .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+//!             .collect();
+//!
+//!
+//! println!("\n--test_turbo_decoder--");
+//! println!("input_vector = {:?}", input_vector);
+//! println!("encoded_vector = {:?}", encoded_vector);
+//! println!("decoded_vector = {:?}", decoded_vector);
+//!
+//! let encoded_bits: Vec<i32> = encoded_vector.iter().step_by(3).map(|&b| b as i32).collect();
+//!
+//! assert_eq!(encoded_bits, decoded_vector);
+//! ```
 extern crate sha3;
+
 
 
 // src/lib.rs
@@ -225,6 +289,8 @@ pub use turboc::siso_decoder::SISODecoder;
 pub use turboc::turbo_encoder::TurboEncoder;
 pub use turboc::turbo_decoder::TurboDecoder;
 pub use turboc::bsc::BSC;
+pub use turboc::interleaver::SRandomInterleaver;
+pub use turboc::interleaver;
 
 
 

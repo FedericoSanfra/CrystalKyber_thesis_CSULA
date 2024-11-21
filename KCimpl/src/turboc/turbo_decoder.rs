@@ -86,9 +86,52 @@ impl TurboDecoder {
         Self::early_exit(&llr_1, &self.llr_ext)
     }
 
+    fn iterate_bsc(&mut self, vector: &[f64], sigma: &f64) -> bool {
+
+        // Per ottenere gli elementi con indice 0, 3, 6, ecc.
+        let group_0 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 0).map(|(_, &v)| v).collect::<Vec<_>>();
+
+        // Per ottenere gli elementi con indice 1, 4, 7, ecc.
+        let group_1 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 1).map(|(_, &v)| v).collect::<Vec<_>>();
+
+        let input_tuples = Self::demultiplex(&group_0, &group_1, &self.llr_ext);
+
+        let mut llr_1 = self.decoders[0].execute(input_tuples.clone());
+        for (i, llr) in llr_1.iter_mut().enumerate() {
+            if vector[i]==-1.0 {
+                *llr -= self.llr_ext[i] + (vector[i] * sigma);  //dividere per scale^2
+            } else{
+                *llr -= self.llr_ext[i] + (vector[i] * sigma * -1.0);
+            }
+
+        }
+
+        let llr_interleaved = self.interleave(&llr_1);
+        let input_interleaved: Vec<f64> = self.interleave(&vector.iter().step_by(3).cloned().collect::<Vec<f64>>());
+
+        // Per ottenere gli elementi con indice 0, 3, 6, ecc.
+        let group_2 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 2).map(|(_, &v)| v).collect::<Vec<_>>();
+
+        let input_tuples = Self::demultiplex(&input_interleaved, &group_2, &llr_interleaved);
+
+        let mut llr_2 = self.decoders[1].execute(input_tuples.clone());
+        for (i, llr) in llr_2.iter_mut().enumerate() {
+            if input_interleaved[i]==-1.0 {
+                *llr -= llr_interleaved[i] + (input_interleaved[i] * sigma);
+            }else {
+                *llr -= llr_interleaved[i] + (input_interleaved[i] * sigma * -1.0);
+            }
+        }
+
+        self.llr_ext = self.deinterleave(&llr_2);
+
+        Self::early_exit(&llr_1, &self.llr_ext)
+    }
+
+
     pub fn execute(&mut self, vector: Vec<f64>, varianza: &f64) -> Vec<f64> {
         for _ in 0..self.max_iter {
-            if self.iterate(&vector, &varianza) {
+            if self.iterate_bsc(&vector, &varianza) { //try the bsc version of iterate
                 break;
             }
         }
