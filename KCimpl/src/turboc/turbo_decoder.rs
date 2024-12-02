@@ -66,7 +66,7 @@ impl TurboDecoder {
 
         let mut llr_1 = self.decoders[0].execute(input_tuples.clone());
         for (i, llr) in llr_1.iter_mut().enumerate() {
-            *llr -= self.llr_ext[i] + (2.0 * vector[i])/(varianza*varianza);  //dividere per scale^2
+            *llr -= self.llr_ext[i] + (2.0 * vector[i]);  //dividere per scale^2
         }
 
         let llr_interleaved = self.interleave(&llr_1);
@@ -79,7 +79,7 @@ impl TurboDecoder {
 
         let mut llr_2 = self.decoders[1].execute(input_tuples.clone());
         for (i, llr) in llr_2.iter_mut().enumerate() {
-            *llr -= llr_interleaved[i] + (2.0 * input_interleaved[i])*(varianza*varianza);
+            *llr -= llr_interleaved[i] + (2.0 * input_interleaved[i]);
         }
 
         self.llr_ext = self.deinterleave(&llr_2);
@@ -103,12 +103,7 @@ impl TurboDecoder {
 
         let mut llr_1 = self.decoders[0].execute(input_tuples.clone());
         for (i, llr) in llr_1.iter_mut().enumerate() {
-            if vector[i]==-1.0 {
-                *llr -= self.llr_ext[i] + (vector[i] * sigma);  //dividere per scale^2
-            } else{
-                *llr -= self.llr_ext[i] + (vector[i] * sigma * -1.0);
-            }
-
+            *llr -= self.llr_ext[i] + (vector[i] * sigma);
         }
 
         let llr_interleaved = self.interleave(&llr_1);
@@ -121,11 +116,7 @@ impl TurboDecoder {
 
         let mut llr_2 = self.decoders[1].execute(input_tuples.clone());
         for (i, llr) in llr_2.iter_mut().enumerate() {
-            if input_interleaved[i]==-1.0 {
-                *llr -= llr_interleaved[i] + (input_interleaved[i] * sigma);
-            }else {
-                *llr -= llr_interleaved[i] + (input_interleaved[i] * sigma * -1.0);
-            }
+            *llr -= llr_interleaved[i] + (input_interleaved[i] * sigma); //metrica log((1-p)/p)
         }
 
         self.llr_ext = self.deinterleave(&llr_2);
