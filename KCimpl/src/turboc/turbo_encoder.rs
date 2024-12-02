@@ -43,6 +43,7 @@ impl TurboEncoder {
     // Funzione di esecuzione (encoding)
     pub fn execute(&mut self, vector: Vec<usize>) -> Vec<u8> {
         let output_size = 3 * (vector.len() + self.encoders[0].registers.len());
+        //TODO viene aggiunto due come i registri, ma se voglio aumentare i tail bits???
         let mut output = vec![0; output_size];
         let interleaved = self.interleave(vector.clone());
 

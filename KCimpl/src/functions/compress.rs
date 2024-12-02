@@ -23,10 +23,21 @@ fn decompress_integer(x: usize, d: usize, q: usize) -> usize {
 pub fn compress_poly<const N: usize>(x: Poly3329<N>, d: usize, q: usize) -> Poly3329<N> {
     let mut coeffs = [Default::default(); N];
     for i in 0..N {
-        coeffs[i] = F3329::from_int(compress_integer(x[i].to_int(), d, q));
+        coeffs[i] = F3329::from_int(compress_integer(x[i].to_int(), d , q));
     }
     Poly3329::from_vec(coeffs)
 }
+
+/// Nuova versione di compress_poly per il secondo polinomio
+/// Aggiungendo una compressione meno aggressiva per il secondo polinomio
+// pub fn compress_poly_less_aggressive<const N: usize>(x: Poly3329<N>, d: usize, q: usize) -> Poly3329<N> {
+//     let mut coeffs = [Default::default(); N];
+//     for i in 0..N {
+//         // Usare un valore `d` più grande per comprimere meno
+//         coeffs[i] = F3329::from_int(compress_integer(x[i].to_int(), d + 1, q)); // Aumento di 1 in `d`
+//     }
+//     Poly3329::from_vec(coeffs)
+// }
 
 
 /// Deompress function on R_q

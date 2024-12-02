@@ -13,6 +13,7 @@ pub struct TurboDecoder {
 impl TurboDecoder {
     pub fn new(interleaver: Vec<usize>, tail_bits: usize, max_iter: usize) -> Self {
         let block_size = interleaver.len();
+        //println!("tail bits + block size {:?}", block_size+tail_bits);
         let decoders = vec![SISODecoder::new(block_size + tail_bits), SISODecoder::new(block_size + tail_bits)];
         let llr_ext = vec![0.0; block_size + tail_bits];
 
@@ -87,6 +88,7 @@ impl TurboDecoder {
     }
 
     fn iterate_bsc(&mut self, vector: &[f64], sigma: &f64) -> bool {
+        //println!("vector in iterate {:?}", vector.len());
 
         // Per ottenere gli elementi con indice 0, 3, 6, ecc.
         let group_0 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 0).map(|(_, &v)| v).collect::<Vec<_>>();
@@ -94,7 +96,10 @@ impl TurboDecoder {
         // Per ottenere gli elementi con indice 1, 4, 7, ecc.
         let group_1 = vector.iter().enumerate().filter(|(i, _)| i % 3 == 1).map(|(_, &v)| v).collect::<Vec<_>>();
 
+        //println!("group 0 len {:?}", group_0.len());
+        //println!("group 1 len {:?}", group_1.len());
         let input_tuples = Self::demultiplex(&group_0, &group_1, &self.llr_ext);
+        //println!("input tuples {:?}", input_tuples.len());
 
         let mut llr_1 = self.decoders[0].execute(input_tuples.clone());
         for (i, llr) in llr_1.iter_mut().enumerate() {
@@ -130,6 +135,7 @@ impl TurboDecoder {
 
 
     pub fn execute(&mut self, vector: Vec<f64>, varianza: &f64) -> Vec<f64> {
+        //println!("vectore in execute len {:?}",vector.len());
         for _ in 0..self.max_iter {
             if self.iterate_bsc(&vector, &varianza) { //try the bsc version of iterate
                 break;

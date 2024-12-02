@@ -19,6 +19,7 @@ impl SISODecoder {
 
 
     pub fn new(block_size: usize) -> Self {
+        //println!("block size in sisodecoder {:?}", &block_size);
         let trellis = Trellis::new();
         let branch_metrics = SISODecoder::init_branch_metrics(4, 4, block_size);
         let forward_metrics = SISODecoder::init_path_metric(4, block_size + 1);
@@ -62,6 +63,8 @@ impl SISODecoder {
     }
 
     pub fn compute_branch(&mut self, tuples: &[(f64, f64, f64)]) {
+        //println!("in compute branch block size: {:?}", self.block_size);
+        //println!("len of tuples {:?}", tuples.len());
         for k in 0..self.block_size {
             for &(m, n) in &self.trellis.possible_transitions {
                 if let Some((i, o)) = self.trellis.transition_to_symbols(m, n) {

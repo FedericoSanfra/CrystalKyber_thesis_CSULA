@@ -1,94 +1,622 @@
 #[cfg(test)]
 mod tests {
-
+    use std::collections::HashMap;
+    use std::path::Path;
+    use plotters::backend::BitMapBackend;
+    use plotters::chart::{ChartBuilder, SeriesLabelPosition};
+    use plotters::drawing::IntoDrawingArea;
+    use plotters::element::PathElement;
+    use plotters::prelude::full_palette::{BLUE, RED};
+    use plotters::prelude::WHITE;
+    use plotters::series::LineSeries;
+    use rand_distr::num_traits::Float;
     use kcimpl::kyber512kem; // Importa l'implementazione KEM di Kyber512
+    use kcimpl::{BSC, TurboDecoder, TurboEncoder, SRandomInterleaver, interleaver};
 
-    #[test]
-    fn test_kem_encapsulation_decapsulation_sr() {
-        // Step 1: Inizializzazione del KEM (Kyber512)
-        let kem = kyber512kem();
+    fn turbo_code_bsc_random_interleaver(n: usize, p: f64)->bool{
+        // Inizializza l'interleaver, encoder, decoder e canale
+        let interleaver =interleaver::generate_unique_random_vector(n);
+        let mut encoder = TurboEncoder::new(interleaver.clone());
+        let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16); //da vedere
+        let mut channel = BSC::new(p); // Canale con probabilità d'errore 0.1
+        let varianza = channel.sigma;
 
-        // Step 2: Alice genera la coppia di chiavi (chiave segreta e pubblica)
-        let (sk, pk) = kem.keygen();
-        println!("Chiave segreta (sk): {:?}", sk);
-        println!("Chiave pubblica (pk): {:?}", pk);
+        // Input: vettore binario
+        let input_vector: Vec<usize> =interleaver::generate_binary_vector(n);
 
-        // Step 3: Bob usa la chiave pubblica di Alice per generare la chiave condivisa (k) e il ciphertext (c)
-        let (c, k) = kem.encaps(&pk);
-        println!("Ciphertext (c): {:?}", c);
-        println!("Chiave condivisa (k): {:?}", k);
+        // Esegui l'encoding
+        let encoded_vector = encoder.execute(input_vector.clone());
 
-        // Step 3.5: Prima di inviare il cyphertext viene codificato con Solomon Reed
+        // Simula il canale BSC
+        let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+        let bsc_channel_vector = channel.execute(&channel_vector); // Introduci errori
 
-        let encoded_data=kem.encoding_sr(c, 16, 6);
-        //perdita dati simulata nel metodo kem.decoding
-
-        println!("Encoded data in Solomon Reed with loss: {:?}", encoded_data);
-        // Step 4: Bob invia il ciphertext (c) ad Alice
-
-        //Step 4.5: Il cyphertext viene ricostruito tramite Solomon Reed
-
-        let reconstructed_data=kem.decoding_sr(encoded_data, 16, 6);
-        println!("Reconstructed data with Solomon Reed with loss simulated: {:?}", reconstructed_data);
-
-        // Step 5: Alice usa la sua chiave segreta (sk) e il ciphertext ricevuto (c) per recuperare la chiave condivisa (k_recovered)
-        let k_recovered = kem.decaps(&reconstructed_data, &sk);
-        println!("Chiave condivisa recuperata da Alice (k_recovered): {:?}", k_recovered);
-
-        // Step 6: Verifica che la chiave condivisa di Bob (k) sia uguale alla chiave recuperata da Alice (k_recovered)
-        assert_eq!(k, k_recovered, "La chiave condivisa non coincide con quella recuperata!");
-    }
-    ///512 PKE TEST SOLOMON-REED ENCODING
-    use super::*;
-    use kcimpl::{kyber512pke, ByteArray};
-
-    #[test]
-    fn test_pke_encryption_decryption_sr() {
-        let pke = kyber512pke();
-
-        // Bob wants to send an encrypted message to Alice
-        let m = ByteArray::random(32);
-        let r = ByteArray::random(32);
-
-        // Alice runs keygen, publishes pk. Value sk is secret
-        let (sk, pk) = pke.keygen();
-        println!("sk-> {:?}", sk);
-        println!("pk-> {:?}", pk);
-
-
-
-        // Bob uses the public key to encrypt the message
-        let enc = pke.encrypt(&pk, &m, r.clone());
-        println!("enc: {:?}", enc);
-        println!("message original: {:?}", m);
-        let data_shards = 16;
-        let parity_shards = 6;
-
-        let encoded_message= pke.encode_key_sr(enc.clone(),data_shards,parity_shards);
-
-        let encoded=encoded_message.unwrap();
-
-        let chunk_size = encoded.data.len() / (data_shards + parity_shards);
-
-        ///SK DATA SHARDS LOSS SIMULATION
-        let mut shards: Vec<Option<Vec<u8>>> = encoded.data.chunks(chunk_size)
-            .map(|chunk| Some(chunk.to_vec()))
+        // Decodifica il vettore ricevuto
+        let decoded_vector: Vec<i32> = decoder
+            .execute(bsc_channel_vector.clone(), &varianza)
+            .iter()
+            .map(|&b| if b > 0.0 { 1 } else { 0 }) // Trasforma i valori > 0 in 1, altrimenti 0
             .collect();
 
-        // Simula la perdita di 3 shards (2 data shards e 1 parity shard)
-        shards[0] = None; // Perdita del primo data shard
-        shards[5] = None; // Perdita del sesto shard (parity shard)
-        shards[3] = None; // Perdita di un altro data shard
+        // Debug: stampa per verifica
+        // println!("\n--test_turbo_decoder_bsc_channel_cycle--");
+        // println!("Input vector: {:?}", input_vector);
+        // println!("interleaver random generated: {:?}", interleaver);
+        // println!("Encoded vector: {:?}", encoded_vector);
+        // println!("Channel vector: {:?}", channel_vector);
+        // println!("BSC output vector (with errors): {:?}", bsc_channel_vector);
+        // println!("Decoded vector: {:?}", decoded_vector);
 
-        let result = pke.reconstruct_key_sr(shards, data_shards, parity_shards);
-        let reconstructed_message = result.unwrap();
+        let decoded_vector_trimmed: Vec<i32> = decoded_vector[..input_vector.len()].to_vec();
+        let converted_input: Vec<i32> = input_vector.iter().map(|&b| b as i32).collect();
 
-        // Bob sends enc to Alice and
-        // Alice uses the secret key to recover m
-        let dec = pke.decrypt(&sk, &reconstructed_message);
-        println!("decrypted message: {:?}", dec);
-        ///The sk stays in Alice system, while pk is published
-        /// I'm not considering pk publishing system in this test
-        assert_eq!(m, dec);
+        decoded_vector_trimmed==converted_input
+
     }
+
+
+    #[test]
+    fn test_turbo_decoder_bsc_channel_random_interleaver() {
+        let mut true_count = 0;
+        let mut false_count = 0;
+        let mut n_values = Vec::new(); // Raccogli i valori di n per ogni iterazione
+        let mut success_ratios = HashMap::new(); // Mappa che terrà il numero di successi per ogni n
+
+        // Ciclo da n = 10 fino a n = 200 con probabilità p = 0.05
+        for n in (10..=1000).step_by(30) { // Incrementi di 10, puoi cambiare il passo come preferisci
+            let p = 0.01; // Probabilità di errore nel canale BSC
+            let result = turbo_code_bsc_random_interleaver(n, p);
+            println!("result: {:?} with n={:?} and p= {:?}", result, n, p);
+
+            // Controlla il risultato e incrementa il contatore corrispondente
+            if result {
+                true_count += 1;
+            } else {
+                false_count += 1;
+            }
+
+            // Memorizza il numero di successi per ciascun valore di n
+            success_ratios.insert(n, true_count as f64 / (true_count + false_count) as f64);
+            n_values.push(n);
+        }
+
+        // Creazione del grafico con plotters
+        let root_area = BitMapBackend::new("success_ratio_plot.png", (800, 600)).into_drawing_area();
+        root_area.fill(&WHITE).unwrap();
+
+        let mut chart = ChartBuilder::on(&root_area)
+            .caption("Success Ratio vs. Input Length (n)", ("sans-serif", 30))
+            .build_cartesian_2d(10..200, 0.0..1.0)
+            .unwrap();
+
+        // Aggiungi etichette sugli assi
+        chart.configure_mesh()
+            .x_desc("Input Length (n)") // Etichetta per l'asse X
+            .y_desc("Success Ratio")    // Etichetta per l'asse Y
+            .x_labels(20)              // Mostra etichette ogni 20 unità sull'asse X
+            .y_labels(10)              // Mostra etichette ogni 0.1 unità sull'asse Y
+            .draw()
+            .unwrap();
+
+        chart.draw_series(LineSeries::new(
+            n_values.iter().map(|&n| (n as i32, *success_ratios.get(&n).unwrap())), // Conversione da usize a i32
+            &RED,
+        ))
+            .unwrap()
+            .label("Success Ratio")
+            .legend(|(x, y)| PathElement::new(vec![(x, y)], &RED));
+
+        // Configura la leggenda
+        chart.configure_series_labels().draw().unwrap();
+
+        // Presenta il grafico
+        root_area.present().unwrap();
+
+        // Stampa il numero di risultati veri e falsi
+        println!("Number of true results: {}", true_count);
+        println!("Number of false results: {}", false_count);
+    }
+
+    fn turbo_code_bsc_pro_interleaver(k: usize, p: f64)->bool{
+        // Parametri dell'interleaver
+            // let k = 10; // Lunghezza della permutazione, suppongo chiave kyber dq 256 bit
+             let s = 12;  // Spread desiderato
+
+             // Creazione dell'interleaver
+             let interleaver = match SRandomInterleaver::new(k, s, 1) {
+                 Some(interleaver) => interleaver,
+                 None => {
+                     println!(
+                         "Impossibile creare un interleaver con lunghezza = {} e spread = {}.",
+                         k, s
+                     );
+                     return false;
+                 }
+             };
+            // let test_interleaver:Vec<usize>=vec![9, 5, 2, 7, 1, 4, 6, 0, 3, 8];
+
+             // Stampa della permutazione generata
+             // println!("Permutazione generata: {:?}", interleaver.permutation);
+
+             // Calcolo dello spread effettivo
+             let calculated_spread = interleaver.calculate_spread();
+             // println!(
+             //     "Spread desiderato: {}, Spread calcolato: {}",
+             //     s, calculated_spread
+             // );
+
+
+         ///TURBO CODE OPERATIONS
+         let mut encoder = TurboEncoder::new(interleaver.permutation.clone());
+         let mut decoder = TurboDecoder::new(interleaver.permutation.clone(), 2, 30);
+
+         let mut channel = BSC::new(p);
+         let mut varianza =channel.sigma;
+         ///test ora con bit scorrelati in input
+         let input_vector: Vec<usize> = interleaver::generate_binary_vector(k);
+         let encoded_vector = encoder.execute(input_vector.clone());
+
+         let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+         let bsc_channel_vector = channel.execute(&channel_vector); //canale con errore
+
+         // println!("channel vector: {:?}", channel_vector);
+         // println!("bsc errors vector: {:?}", bsc_channel_vector);
+
+         let decoded_vector: Vec<i32> = decoder.execute(bsc_channel_vector.clone(), &varianza)
+                     .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+                     .collect();
+
+
+         // println!("\n--test_turbo_decoder--");
+         // println!("input_vector = {:?}", input_vector);
+         // println!("encoded_vector = {:?}", encoded_vector);
+         // println!("decoded_vector = {:?}", decoded_vector);
+
+        let decoded_vector_trimmed: Vec<i32> = decoded_vector[..input_vector.len()].to_vec();
+        let converted_input: Vec<i32> = input_vector.iter().map(|&b| b as i32).collect();
+
+        decoded_vector_trimmed==converted_input
+
+
+    }
+
+
+    #[test]
+    fn test_turbo_decoder_bsc_channel_pro_interleaver() {
+        let mut true_count = 0;
+        let mut false_count = 0;
+        let mut n_values = Vec::new(); // Raccogli i valori di n per ogni iterazione
+        let mut success_ratios = HashMap::new(); // Mappa che terrà il numero di successi per ogni n
+
+        // Ciclo da n = 10 fino a n = 1000 con probabilità p = 0.05
+        for n in (10..=1000).step_by(10) { // Incrementi di 10
+            let p = 0.05; // Probabilità di errore nel canale BSC
+            let result = turbo_code_bsc_pro_interleaver(n, p);
+
+            // Stampa dei risultati
+            println!("result: {:?} with n={:?} and p={:?}", result, n, p);
+
+            // Controlla il risultato e incrementa il contatore corrispondente
+            if result {
+                true_count += 1;
+            } else {
+                false_count += 1;
+            }
+
+            // Memorizza il numero di successi per ciascun valore di n
+            success_ratios.insert(n, true_count as f64 / (true_count + false_count) as f64);
+            n_values.push(n);
+        }
+
+        // Creazione del grafico con plotters
+        let root_area = BitMapBackend::new("success_ratio_plot_new_interleaver.png", (800, 600)).into_drawing_area();
+        root_area.fill(&WHITE).unwrap();
+
+        let mut chart = ChartBuilder::on(&root_area)
+            .caption("Success Ratio vs. Input Length (n)", ("sans-serif", 30))
+            .build_cartesian_2d(10..1000, 0.0..1.0)
+            .unwrap();
+
+        // Aggiungi etichette sugli assi e configura la visualizzazione dei valori
+        chart.configure_mesh()
+            .x_desc("Input Length (n)") // Etichetta per l'asse X
+            .y_desc("Success Ratio")    // Etichetta per l'asse Y
+            .x_labels(20)              // Mostra etichette ogni 20 unità sull'asse X
+            .y_labels(10)              // Mostra etichette ogni 0.1 unità sull'asse Y
+            .draw()
+            .unwrap();
+
+        // Aggiungi la serie di dati
+        chart.draw_series(LineSeries::new(
+            n_values.iter().map(|&n| (n as i32, *success_ratios.get(&n).unwrap())), // Conversione da usize a i32
+            &RED,
+        ))
+            .unwrap()
+            .label("Success Ratio")
+            .legend(|(x, y)| PathElement::new(vec![(x, y)], &RED));
+
+        // Configura la leggenda
+        chart.configure_series_labels().draw().unwrap();
+
+        // Presenta il grafico
+        root_area.present().unwrap();
+
+        // Stampa il numero di risultati veri e falsi
+        println!("Number of true results: {}", true_count);
+        println!("Number of false results: {}", false_count);
+    }
+
+    fn turbo_code_kyber_keys(input_vector: Vec<usize>, k: usize, p: f64, blocks: usize)->Vec<usize>{
+        // Parametri dell'interleaver
+        // let k = 10; // Lunghezza della permutazione, suppongo chiave kyber dq 256 bit
+        let s = 15;  // Spread desiderato
+
+        // Creazione dell'interleaver
+        let interleaver = match SRandomInterleaver::new(k, s, blocks) {
+            Some(interleaver) => interleaver,
+            None => {
+                println!(
+                    "Impossibile creare un interleaver con lunghezza = {} e spread = {}.",
+                    k, s
+                );
+                return Vec::new();
+            }
+        };
+        // let test_interleaver:Vec<usize>=vec![9, 5, 2, 7, 1, 4, 6, 0, 3, 8];
+
+        // Stampa della permutazione generata
+        // println!("Permutazione generata: {:?}", interleaver.permutation);
+
+        // Calcolo dello spread effettivo
+        let calculated_spread = interleaver.calculate_spread();
+        // println!(
+        //     "Spread desiderato: {}, Spread calcolato: {}",
+        //     s, calculated_spread
+        // );
+
+
+        ///TURBO CODE OPERATIONS
+        let mut encoder = TurboEncoder::new(interleaver.permutation.clone());
+        let mut decoder = TurboDecoder::new(interleaver.permutation.clone(), 2, 30);
+
+        let mut channel = BSC::new(p);
+        let mut varianza =channel.sigma;
+        ///test ora con bit scorrelati in input
+        //let input_vector: Vec<usize> = interleaver::generate_binary_vector(k*blocks);
+        let encoded_vector = encoder.execute(input_vector.clone());
+
+        let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+        let bsc_channel_vector = channel.execute(&channel_vector); //canale con errore
+
+        // println!("channel vector: {:?}", channel_vector);
+        // println!("bsc errors vector: {:?}", bsc_channel_vector);
+
+        let decoded_vector: Vec<usize> = decoder.execute(bsc_channel_vector.clone(), &varianza)
+            .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+            .collect();
+
+
+        // Suddividi i vettori (input e decoded) in blocchi
+        // let mut true_block_count = 0;
+        // for block_index in 0..blocks {
+        //     // Suddivide i vettori in blocchi di lunghezza k
+        //     let start = block_index * k;
+        //     let end = start + k;
+        //
+        //     // Estrai i blocchi dall'input e dal vettore decodificato
+        //     let input_block: Vec<i32> = input_vector[start..end].iter().map(|&b| b as i32).collect();
+        //     let decoded_block: Vec<i32> = decoded_vector[start..end].to_vec();
+        //
+        //     // Confronta ogni blocco di input con il blocco decodificato
+        //     if input_block == decoded_block {
+        //         true_block_count += 1;
+        //     }
+        // }
+
+        decoded_vector
+
+
+    }
+
+    pub fn byte_array_to_bit_array(byte_array: &[u8]) -> Vec<usize> {
+        let mut bit_array = Vec::new();
+
+        // Per ogni byte nell'array
+        for &byte in byte_array.iter() {
+            // Estrai i singoli bit (8 bit per ogni byte)
+            for i in (0..8).rev() {
+                // Aggiungi il bit (0 o 1) all'array
+                bit_array.push(((byte >> i) & 1) as usize);
+            }
+        }
+
+        bit_array
+    }
+
+    /// Converte un array di bit (0 o 1) in un array di byte
+    /// Ogni 8 bit sono raggruppati in un singolo byte
+    fn bit_array_to_byte_array(bit_array: &Vec<usize>) -> Vec<u8> {
+        let mut byte_array = Vec::new();
+
+        // Itera sui bit a gruppi di 8
+        for chunk in bit_array.chunks(8) {
+            let mut byte = 0u8;
+
+            // Imposta i bit nel byte
+            for (i, &bit) in chunk.iter().enumerate() {
+                if bit == 1 {
+                    byte |= 1 << i; // Setta il bit nella posizione corretta
+                }
+            }
+
+            byte_array.push(byte);
+        }
+
+        byte_array
+    }
+
+    #[test]
+    fn test_turbo_kyber_keys() {
+        use kcimpl::kyber512pke;
+        use kcimpl::structures::ByteArray;
+
+        let pke = kyber512pke();
+
+        // Bob vuole inviare un messaggio cifrato a Alice
+        let m = ByteArray::random(32); // Messaggio casuale
+        let r = ByteArray::random(32); // Random per la cifratura
+
+        let mut all_enc_bits = Vec::new(); // Conterrà i bit concatenati di tutte le cifrature
+        let mut all_keys = Vec::new(); // Per salvare tutte le coppie di chiavi segrete e pubbliche
+
+        // Processo di cifratura e generazione di bit
+        for _ in 0..1 {
+            // Genera una nuova coppia di chiavi (pubblica e segreta)
+            let (sk, pk) = pke.keygen();
+
+            // Salva la coppia di chiavi
+            all_keys.push((sk.clone(), pk.clone()));
+
+            // Cifra il messaggio utilizzando la chiave pubblica
+            let enc = pke.encrypt(&pk, &m, r.clone());
+
+            // Converte i dati cifrati in bit
+            let enc_bits = byte_array_to_bit_array(&enc.data);
+
+            // Aggiungi i bit della cifra al vettore concatenato
+            all_enc_bits.extend(enc_bits);
+        }
+        println!("all_enc_bits {:?}", all_enc_bits.clone());
+
+        // Decodifica i bit concatenati utilizzando turbo_code_kyber_keys
+        let result = turbo_code_kyber_keys(all_enc_bits.clone(), 736 * 8, 0.01, 1);
+
+        // Converte il vettore di bit decodificati in un ByteArray
+        let decoded_bytes = ByteArray::from_bytes(&bit_array_to_byte_array(&result));
+
+        // Calcolo delle dimensioni dei blocchi
+        let block_size = 736; // Dimensione del blocco in byte
+        let num_blocks = 1;
+
+
+
+        // Dividiamo i byte decodificati in blocchi e decrittiamo ciascun blocco
+        for i in 0..num_blocks {
+            let (start, end) = (i * block_size, (i + 1) * block_size);
+
+            // Ottieni il blocco corrente come ByteArray
+            let current_block = ByteArray::from_bytes(&decoded_bytes.data[start..end]);
+
+            // Recupera la chiave segreta corrispondente
+            let (sk, pk) = &all_keys[i];
+
+            // Alice decritta il messaggio utilizzando la chiave segreta
+            let dec = pke.decrypt(sk, &current_block);
+
+            // Confronta il messaggio originale con il messaggio decriptato
+            //assert_eq!(m, dec, "La decrittazione non è corretta per il blocco {}", i);
+            println!("m e messaggio criptato {:?}", m==dec);
+            // Stampa dei risultati
+            println!("Blocco {} decriptato correttamente!", i);
+            // println!("Messaggio originale: {:?}", m);
+            // println!("Messaggio decriptato: {:?}", dec);
+        }
+    }
+
+    fn turbo_code_bsc_10000_interleaver(blocks:usize, p: f64)->(i32, i32){ //no blocks version
+        // Parametri dell'interleaver
+        // let k = 10; // Lunghezza della permutazione, suppongo chiave kyber dq 256 bit
+
+
+        let interleaver=vec![8701, 9999, 9997, 9995, 9991, 9960, 9994, 9993, 9955, 9984, 9956, 9982, 9946, 9928, 9951, 9974, 9917, 9941, 9745, 9926, 9938, 9944, 1503, 9911, 9852, 6005, 1303, 2005, 1605, 1103, 704, 7104, 3505, 9801, 9806, 9710, 7602, 2799, 9802, 2502, 3703, 6804, 9903, 9902, 8799, 7703, 204, 903, 9200, 2201, 8198, 6501, 9901, 5901, 7299, 5699, 6997, 5397, 3399, 6200, 2698, 3599, 3999, 2597, 7800, 9499, 99, 7397, 5795, 2096, 4098, 6698, 5295, 4497, 9855, 9877, 299, 9795, 1699, 400, 9735, 9380, 9865, 9895, 8179, 9072, 9744, 9878, 3378, 9840, 9844, 9875, 9874, 9851, 9812, 9860, 9824, 9891, 9899, 9863, 9892, 9889, 9898, 9879, 9884, 9876, 9893, 9870, 9867, 9577, 9760, 9474, 9872, 9722, 8466, 9650, 9857, 9701, 609, 19, 20, 133, 22, 9835, 24, 6006, 1304, 8636, 28, 29, 30, 31, 3504, 33, 9706, 35, 9609, 2800, 38, 2501, 3704, 6803, 7503, 43, 8800, 7702, 203, 47, 48, 49, 8197, 51, 5902, 54, 5700, 6999, 5399, 3401, 6201, 2699, 3601, 62, 2598, 64, 9501, 0, 7398, 5797, 2097, 4099, 6699, 5296, 4498, 1897, 6901, 9737, 3900, 78, 401, 4701, 9400, 4599, 9747, 7204, 9726, 9772, 9732, 9725, 9533, 9798, 9757, 9668, 9728, 9791, 9790, 9753, 9681, 9780, 9799, 9719, 9783, 9789, 9698, 9782, 9692, 9776, 9767, 9742, 9632, 9670, 9623, 9714, 9739, 1823, 2304, 9743, 6619, 116, 9723, 118, 4300, 603, 5503, 1502, 9600, 8899, 25, 126, 2003, 1603, 1102, 702, 7103, 579, 2403, 4404, 7601, 137, 138, 2500, 40, 6802, 9703, 143, 144, 218, 103, 147, 148, 149, 150, 151, 152, 153, 5701, 155, 156, 3400, 59, 159, 3602, 161, 162, 163, 164, 3101, 7399, 167, 168, 169, 71, 5297, 73, 173, 6902, 175, 176, 177, 9678, 80, 9401, 9534, 182, 183, 184, 9255, 7902, 8680, 9585, 9640, 8427, 9675, 9485, 9669, 9643, 9661, 9425, 9680, 9612, 9686, 9593, 9699, 9618, 9674, 9237, 9526, 9616, 9657, 9614, 9667, 9660, 8640, 9428, 213, 2303, 8142, 9018, 9161, 219, 4302, 221, 121, 223, 23, 9543, 125, 9460, 127, 1604, 1104, 703, 232, 32, 234, 235, 236, 2801, 5604, 139, 140, 41, 242, 2108, 243, 244, 245, 246, 902, 248, 2202, 250, 251, 252, 7300, 254, 7000, 256, 157, 258, 259, 160, 4000, 262, 7799, 264, 4998, 7400, 267, 268, 4100, 270, 9436, 272, 273, 274, 199, 77, 1700, 278, 9493, 9051, 4399, 8002, 283, 9047, 9487, 9429, 9488, 6400, 9486, 9572, 9196, 9256, 8436, 9139, 9427, 9489, 9559, 9596, 9337, 9413, 9586, 9578, 9541, 9571, 9558, 9358, 9464, 9560, 9369, 9307, 8952, 9552, 9441, 9343, 9206, 316, 317, 318, 319, 320, 321, 322, 8901, 9443, 1306, 2006, 1606, 1106, 130, 131, 332, 333, 4405, 136, 2803, 5605, 2503, 339, 6805, 341, 9107, 8501, 8801, 345, 104, 247, 9202, 349, 50, 351, 5903, 7302, 5702, 355, 5400, 3403, 158, 2700, 360, 4002, 2599, 263, 9503, 265, 7401, 5799, 2099, 369, 6700, 5298, 372, 1898, 6904, 200, 276, 1701, 4801, 279, 9402, 220, 282, 7205, 6603, 9101, 8275, 9492, 6401, 8669, 9384, 9444, 8566, 8637, 9375, 8344, 9476, 9325, 9463, 9457, 9417, 9418, 9370, 9483, 9458, 9290, 9383, 9439, 9430, 8384, 409, 9040, 411, 9124, 7920, 2302, 415, 413, 8246, 4603, 4303, 420, 421, 422, 423, 424, 326, 426, 427, 1107, 429, 430, 431, 134, 334, 335, 435, 436, 437, 438, 439, 440, 2109, 442, 443, 7700, 105, 904, 447, 249, 449, 6500, 352, 7301, 453, 454, 5401, 3402, 457, 458, 3600, 460, 362, 363, 165, 465, 5800, 2100, 4101, 6701, 5299, 471, 1899, 3998, 473, 474, 3901, 476, 477, 9251, 9403, 7904, 481, 7206, 9344, 9102, 8971, 7972, 9288, 389, 8203, 9336, 8778, 9283, 8431, 8368, 9389, 9393, 9021, 9323, 9357, 9213, 9371, 9304, 9392, 9159, 9350, 9339, 9319, 1541, 9231, 8539, 8612, 5224, 513, 8954, 515, 9326, 3001, 518, 419, 109, 5505, 522, 523, 524, 525, 327, 128, 528, 529, 530, 132, 532, 135, 7600, 535, 536, 537, 3705, 340, 42, 7405, 542, 543, 7699, 545, 905, 547, 548, 8199, 450, 551, 353, 553, 7001, 555, 357, 557, 558, 559, 560, 561, 562, 563, 564, 466, 8898, 467, 269, 568, 569, 4496, 571, 6402, 6903, 375, 475, 377, 301, 578, 580, 382, 582, 583, 584, 7784, 8976, 8877, 588, 9276, 8671, 591, 9232, 9263, 9284, 9082, 8434, 8897, 9233, 9257, 9292, 9252, 9176, 9265, 9174, 9271, 9201, 9218, 9180, 9160, 5722, 79, 9258, 312, 514, 615, 616, 617, 618, 619, 410, 9024, 1501, 8902, 624, 625, 2004, 527, 428, 8306, 331, 631, 632, 533, 634, 2804, 636, 2504, 3706, 639, 7501, 342, 642, 643, 644, 445, 906, 647, 448, 8200, 650, 651, 652, 354, 7002, 655, 257, 358, 2701, 459, 4001, 661, 662, 663, 366, 665, 6798, 667, 668, 669, 670, 671, 672, 6403, 674, 675, 676, 677, 678, 679, 186, 681, 482, 6605, 8676, 7901, 9043, 673, 8329, 8771, 690, 691, 8675, 7526, 8135, 8130, 9138, 9181, 9150, 9164, 9197, 9156, 9195, 9153, 9122, 8994, 8927, 484, 8844, 709, 8935, 6024, 712, 8723, 714, 715, 716, 517, 718, 7944, 620, 721, 622, 8903, 724, 725, 228, 727, 728, 1402, 7102, 531, 2405, 733, 534, 635, 736, 737, 738, 539, 7500, 8108, 742, 8802, 744, 745, 646, 2203, 8201, 6502, 451, 752, 653, 754, 5402, 656, 657, 2703, 3603, 660, 2600, 462, 1, 664, 565, 6800, 566, 768, 6702, 5300, 172, 1900, 3296, 1397, 573, 775, 376, 576, 300, 179, 780, 781, 782, 783, 784, 785, 4198, 787, 9039, 789, 5679, 791, 8938, 8633, 8970, 795, 225, 9097, 9030, 9049, 8748, 9086, 8990, 8968, 9068, 8889, 8739, 8939, 9067, 939, 8658, 8906, 7406, 7812, 8740, 8955, 816, 817, 818, 819, 820, 821, 822, 723, 1591, 227, 726, 827, 628, 206, 830, 831, 832, 833, 734, 835, 836, 837, 3707, 839, 740, 6410, 842, 843, 844, 845, 804, 847, 848, 750, 850, 851, 852, 654, 854, 556, 6202, 2702, 858, 760, 2601, 861, 862, 764, 864, 7297, 866, 70, 868, 5301, 870, 6493, 772, 4494, 1396, 774, 197, 3898, 777, 275, 779, 685, 8001, 83, 683, 885, 886, 773, 7378, 889, 890, 8972, 8920, 7554, 8870, 8388, 8930, 8981, 8715, 8553, 8974, 8703, 8980, 8983, 8882, 8060, 8864, 8839, 8788, 8811, 402, 6222, 1082, 1408, 914, 915, 115, 917, 918, 919, 920, 921, 922, 923, 226, 825, 926, 627, 928, 929, 7101, 931, 932, 933, 934, 735, 936, 2505, 838, 739, 840, 511, 942, 943, 944, 346, 803, 2204, 8202, 949, 751, 253, 952, 953, 755, 456, 956, 857, 958, 361, 960, 7801, 962, 963, 964, 7296, 767, 967, 6703, 969, 281, 1194, 972, 4495, 3496, 374, 976, 3897, 978, 878, 980, 7802, 982, 983, 984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 8735, 8670, 8462, 8881, 8532, 8831, 8854, 8883, 8560, 8547, 8758, 8762, 8751, 7411, 8743, 1808, 6723, 7740, 912, 8782, 1014, 1015, 1016, 1017, 1018, 1019, 1020, 1021, 722, 924, 425, 626, 1027, 8506, 1029, 1030, 3507, 2407, 4406, 834, 1035, 5606, 1037, 938, 1039, 940, 1041, 8503, 8803, 444, 945, 2909, 2205, 1089, 6503, 1050, 951, 5703, 1053, 954, 4600, 1055, 6203, 2704, 260, 1059, 2602, 1061, 763, 1063, 765, 865, 1066, 1067, 1068, 869, 1070, 1071, 1072, 5895, 873, 1075, 198, 3896, 1078, 778, 1080, 489, 8000, 7202, 883, 1085, 786, 8174, 1088, 1147, 1090, 1091, 2173, 2273, 1094, 1871, 8510, 8781, 8582, 8497, 8794, 8719, 8616, 8763, 8561, 6883, 8572, 8579, 8485, 8545, 1110, 8768, 1112, 347, 1114, 1115, 1116, 1117, 1118, 1119, 720, 1121, 1500, 1123, 1124, 526, 328, 1008, 1128, 1129, 3506, 2406, 1132, 1133, 1134, 1135, 1136, 1038, 1138, 1139, 6411, 1141, 45, 106, 1145, 2206, 8204, 6505, 5904, 552, 1151, 853, 5403, 53, 3405, 1156, 1157, 1058, 959, 2604, 1081, 1062, 863, 1064, 6801, 966, 867, 1168, 1069, 4500, 4894, 1172, 5897, 1398, 1175, 574, 1077, 877, 5697, 1179, 879, 434, 1182, 1183, 1184, 1185, 1186, 1187, 1188, 8674, 90, 1191, 1192, 7775, 7474, 7745, 8673, 8470, 8529, 8628, 8683, 8691, 8413, 8696, 8619, 5946, 7843, 7360, 1291, 3528, 8441, 1012, 1113, 1705, 814, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1499, 1223, 828, 1225, 1126, 1227, 3301, 930, 1230, 1231, 1232, 1281, 935, 1036, 2506, 638, 141, 1239, 6412, 1241, 1242, 107, 946, 2207, 1246, 6504, 1248, 1249, 1052, 1152, 1252, 719, 3404, 1255, 1057, 1158, 1258, 2603, 1260, 2, 1262, 5801, 1165, 2101, 1266, 1267, 1268, 1269, 4895, 1271, 771, 2795, 1274, 201, 1276, 1277, 60, 1279, 1280, 1154, 1282, 1283, 1084, 7672, 686, 7680, 1288, 1289, 1290, 1308, 4901, 1293, 1294, 6925, 8465, 8565, 8508, 8415, 8520, 8558, 8152, 8267, 7952, 6781, 2811, 8343, 5928, 6117, 7742, 1311, 1312, 1694, 1314, 1315, 1316, 1317, 1318, 1319, 1320, 521, 1222, 1024, 8509, 1325, 1326, 1327, 1328, 1229, 1031, 1131, 1332, 1333, 1334, 337, 1236, 1237, 241, 640, 510, 1341, 1342, 3606, 1344, 1245, 8205, 1148, 1348, 1349, 1250, 1351, 1352, 1149, 1354, 6204, 957, 759, 1358, 1359, 7803, 3, 7402, 1363, 5200, 2102, 468, 968, 5302, 4501, 1096, 1371, 5898, 1298, 174, 1275, 977, 1178, 1378, 1079, 1380, 1381, 7998, 7999, 7200, 483, 7883, 1286, 1287, 8278, 7472, 7571, 1392, 1393, 6872, 8468, 8062, 7073, 7755, 8424, 8452, 8488, 8305, 7964, 8176, 8383, 1405, 7956, 7757, 7516, 7324, 1324, 8242, 1213, 3805, 1414, 6102, 916, 717, 1418, 1353, 501, 222, 1399, 6004, 520, 1125, 1226, 1006, 829, 7100, 233, 1032, 433, 1233, 1434, 1435, 937, 1337, 1364, 1339, 508, 1442, 1343, 1444, 1345, 1446, 1447, 950, 452, 1450, 1451, 1153, 1520, 1155, 6205, 1456, 1457, 859, 1160, 1460, 4, 1462, 5802, 1464, 1465, 1466, 1467, 1468, 1469, 7994, 871, 1472, 1473, 1474, 875, 1476, 1477, 2697, 1479, 4702, 1369, 1485, 1483, 1484, 384, 1486, 1487, 1488, 1388, 1490, 1491, 1492, 1493, 7846, 1495, 8229, 8332, 8031, 8131, 8354, 8348, 8323, 7911, 7612, 8265, 8363, 8161, 6922, 8045, 607, 1411, 1513, 2085, 1214, 1415, 1416, 1417, 4604, 1419, 1521, 1421, 7201, 1423, 1424, 1526, 1506, 1528, 1428, 1429, 1430, 1331, 4407, 1433, 2805, 1335, 1537, 1437, 1438, 1439, 6108, 507, 1542, 1243, 1244, 2208, 1546, 849, 1548, 7303, 5704, 1551, 1552, 1619, 955, 1455, 1356, 1557, 1558, 1559, 1560, 1461, 1562, 1563, 1564, 2103, 1566, 769, 1368, 1569, 5894, 1571, 570, 1573, 1574, 1575, 876, 1577, 1578, 1379, 1580, 1347, 1582, 1382, 1584, 1585, 1586, 1587, 1588, 1589, 1360, 1161, 1592, 1593, 7875, 7374, 8236, 7471, 8237, 7988, 8287, 8160, 8286, 8276, 8264, 7919, 2868, 1607, 146, 3044, 2627, 8231, 1612, 1613, 1614, 1615, 1616, 1617, 1618, 1653, 1420, 1621, 1193, 1623, 1624, 1625, 1626, 8401, 1628, 1629, 1630, 1532, 1632, 1633, 1634, 1635, 1636, 5108, 538, 1539, 1540, 6106, 1909, 1413, 1144, 1046, 1445, 1346, 1049, 1648, 1549, 1350, 554, 1652, 1553, 855, 1056, 1656, 659, 1458, 1659, 1690, 1261, 1362, 1463, 5198, 1665, 1366, 469, 1169, 1669, 1095, 1471, 1672, 1296, 75, 1675, 1576, 1599, 1678, 1579, 1180, 1547, 84, 1583, 7199, 6600, 6275, 1086, 687, 1489, 1691, 4975, 1292, 1100, 6973, 7981, 7987, 7577, 8081, 7468, 8165, 8194, 8092, 8059, 8156, 7968, 8019, 7955, 3127, 1710, 1711, 1712, 8145, 1714, 1516, 1716, 3003, 1718, 4304, 1720, 1721, 1722, 9301, 6003, 304, 1725, 1505, 1727, 1228, 1729, 731, 732, 1432, 1534, 1734, 238, 1736, 5106, 1738, 6799, 1040, 114, 7908, 1143, 1744, 801, 1146, 550, 1448, 1750, 1751, 1651, 1753, 1754, 1755, 1756, 1757, 1758, 1759, 1459, 1660, 1162, 1662, 1663, 1765, 1565, 1666, 1768, 1668, 1770, 1771, 1671, 1773, 1774, 1775, 1776, 1777, 1778, 3588, 1780, 1781, 1688, 5804, 1784, 1785, 1786, 1787, 7984, 1789, 1790, 7436, 6398, 7176, 6837, 7671, 7871, 7983, 7885, 8082, 7881, 7828, 8017, 7569, 8013, 7969, 5728, 8068, 7729, 7422, 3312, 4011, 1512, 1812, 1504, 1515, 6101, 1517, 1518, 1519, 1719, 1620, 1522, 1622, 6606, 6001, 1825, 826, 605, 713, 729, 1530, 1531, 1832, 1533, 1034, 1535, 5602, 1837, 1816, 1839, 766, 7499, 1872, 1555, 1844, 102, 796, 947, 6499, 1453, 1850, 1851, 1852, 1853, 2301, 756, 757, 1556, 1858, 1859, 1760, 1761, 1862, 1763, 1864, 1865, 1365, 1767, 170, 1769, 1170, 1093, 1295, 1073, 5395, 1875, 1176, 1376, 1598, 1879, 979, 379, 4598, 1883, 1482, 7197, 6599, 7899, 4197, 288, 1044, 7392, 6283, 1099, 7772, 7947, 7931, 7936, 7730, 7941, 7841, 7914, 7031, 7716, 7788, 7744, 1907, 7985, 7753, 680, 7826, 1912, 5639, 7622, 1915, 6100, 1917, 1918, 1919, 1920, 500, 1922, 1923, 4207, 1925, 1926, 1803, 122, 1929, 120, 1931, 1831, 1933, 1934, 1834, 1936, 1836, 1938, 5105, 1940, 1941, 1942, 1815, 1427, 1945, 101, 1846, 1948, 1949, 1253, 1951, 1550, 1953, 1054, 2015, 1956, 1957, 758, 1959, 1960, 1961, 1962, 464, 1964, 1965, 1983, 1265, 1968, 1969, 1869, 1971, 1972, 1795, 1974, 700, 1976, 1977, 1877, 1979, 4988, 1981, 1881, 1076, 1984, 2025, 1986, 6598, 1988, 1888, 1990, 1991, 6455, 1993, 1994, 1995, 7412, 7572, 7868, 6349, 6466, 7718, 7662, 7842, 7713, 7852, 7864, 1706, 1208, 7427, 7644, 4428, 3201, 7845, 900, 2014, 1955, 6099, 5102, 2018, 418, 1854, 499, 5502, 1273, 7508, 5999, 1525, 1902, 1022, 2029, 602, 7099, 1932, 432, 1033, 2035, 336, 1937, 2038, 5803, 240, 2041, 2042, 2016, 1860, 544, 100, 1947, 2048, 6498, 5900, 1449, 753, 1752, 455, 2055, 2056, 6198, 658, 61, 1159, 860, 2062, 365, 2064, 1263, 2023, 1999, 2068, 2069, 1970, 970, 1092, 1798, 973, 2090, 6899, 2083, 1978, 1597, 1278, 2081, 1982, 2066, 2065, 1967, 7196, 6597, 2089, 2176, 2126, 2092, 2093, 6152, 6451, 6552, 6650, 6750, 6949, 7452, 7792, 7413, 1905, 7666, 5712, 7228, 1301, 4612, 541, 2110, 2111, 2901, 2113, 2013, 110, 2116, 2117, 2402, 5101, 3000, 4601, 119, 497, 5501, 1174, 1643, 5997, 4802, 1901, 2129, 913, 2131, 7098, 3502, 2134, 633, 1935, 37, 5600, 39, 2185, 3702, 6797, 2143, 6098, 1749, 2091, 66, 799, 1766, 6497, 1572, 1150, 55, 2154, 2155, 2216, 58, 6197, 1478, 3598, 2161, 461, 2164, 1863, 2166, 3499, 2168, 2169, 2170, 2171, 2071, 2072, 2174, 3695, 3994, 6898, 2077, 2179, 2180, 5696, 2182, 2183, 2178, 2241, 648, 2187, 2188, 6072, 1892, 3795, 6396, 2193, 2194, 6262, 7172, 7617, 7417, 7316, 7282, 7489, 6854, 7455, 7670, 7449, 5330, 5229, 1645, 4211, 2210, 4209, 1529, 2213, 2214, 1514, 2286, 2144, 2218, 2219, 2220, 2221, 2222, 5000, 7309, 2124, 6905, 2227, 5202, 2128, 1122, 2231, 2232, 2233, 2234, 2318, 2236, 2237, 237, 5599, 2240, 1764, 2242, 2243, 2244, 1238, 1163, 2046, 2047, 2104, 2049, 5899, 2051, 154, 2053, 1954, 1903, 2157, 2158, 2260, 2059, 2060, 2263, 2063, 7403, 2266, 4597, 2001, 2269, 1868, 2070, 1581, 3194, 2274, 7190, 1297, 2177, 1876, 1676, 2079, 2181, 1880, 2082, 2278, 1987, 1400, 2086, 2087, 2189, 2190, 7497, 7496, 2362, 2293, 2294, 6437, 6336, 7439, 7537, 7371, 7125, 7519, 7484, 7552, 7416, 7348, 6759, 7056, 2308, 3100, 811, 4943, 3727, 2313, 2314, 2315, 2316, 2217, 1841, 2319, 2320, 2321, 2322, 2323, 5499, 2225, 3801, 5998, 2328, 2329, 2330, 2331, 2332, 2333, 2334, 2156, 2336, 2137, 2239, 2340, 309, 2141, 2142, 2418, 6806, 1164, 2347, 802, 2045, 1748, 2351, 1649, 2353, 1251, 2355, 2356, 1855, 6199, 359, 1657, 2361, 2392, 2309, 2010, 2341, 2401, 2367, 1867, 2386, 2369, 1568, 2272, 367, 2373, 997, 590, 2376, 2377, 2378, 2379, 2281, 2381, 1480, 181, 2384, 2421, 7198, 2387, 2388, 2389, 3797, 3796, 1083, 1692, 2394, 2395, 7391, 6441, 6740, 7085, 7498, 7339, 7238, 7343, 7354, 7166, 5283, 2352, 2408, 7242, 4878, 2411, 882, 2413, 2414, 2415, 6818, 2417, 2435, 2419, 2420, 2485, 2422, 2423, 2424, 2425, 3713, 2327, 2228, 2429, 2430, 1002, 1336, 2132, 2133, 2257, 4402, 2437, 2339, 2465, 6409, 2441, 2442, 2317, 6496, 2446, 1745, 2448, 2452, 2449, 2450, 2451, 2548, 2453, 2054, 1939, 1654, 2457, 2458, 2459, 2460, 2461, 2462, 641, 2365, 1051, 2466, 2467, 3396, 1667, 2470, 2471, 4397, 2073, 3697, 2375, 2277, 2477, 2078, 2280, 2480, 2481, 2382, 1481, 2487, 2120, 2486, 2288, 1687, 2489, 2490, 7284, 2492, 2493, 7384, 6545, 7184, 7381, 6162, 7237, 6483, 3074, 7291, 6959, 7259, 7368, 7156, 2507, 4780, 2952, 2510, 3473, 1511, 2513, 2114, 2515, 2416, 2517, 2518, 2519, 2520, 2521, 2522, 2122, 5498, 2525, 6298, 807, 5996, 1199, 2529, 1422, 1001, 2432, 2533, 2434, 2299, 4400, 2338, 5597, 2539, 2564, 2342, 2343, 2617, 6495, 2147, 2546, 2105, 5698, 1848, 2252, 2551, 2649, 2553, 2256, 2230, 2456, 2557, 2359, 2559, 2262, 2498, 1963, 2641, 1739, 2000, 2567, 2568, 2569, 2370, 2371, 2372, 2573, 1372, 2475, 2576, 2577, 2578, 2579, 390, 2581, 2482, 2483, 2658, 2585, 2586, 5782, 2588, 2589, 2591, 2291, 2592, 2593, 2594, 6488, 2596, 7011, 7276, 6459, 7263, 1684, 6978, 7157, 7257, 6344, 2606, 7144, 2608, 6343, 2009, 5206, 2612, 2613, 2614, 2115, 2616, 2644, 1026, 5100, 2620, 2621, 2622, 2623, 2624, 2625, 2626, 408, 2628, 2629, 2229, 2530, 2531, 2633, 2433, 2635, 2300, 4401, 2537, 2639, 2640, 2445, 2642, 2643, 5107, 1247, 2545, 2447, 2349, 4003, 2549, 2651, 2254, 7003, 2655, 2235, 2556, 2057, 2561, 1357, 2560, 2499, 2562, 2464, 2159, 2566, 567, 498, 2669, 2570, 1870, 1097, 1973, 1173, 4900, 2076, 1475, 2478, 1878, 2595, 2681, 1680, 2721, 3198, 1818, 1885, 2584, 1386, 388, 2191, 1390, 383, 7081, 2138, 6056, 2695, 2696, 6844, 6438, 7143, 6507, 6836, 7036, 7135, 6788, 730, 1025, 2707, 2708, 3228, 1609, 1224, 1829, 2713, 2514, 2615, 2716, 2717, 1927, 5099, 2720, 2782, 2722, 2723, 2724, 2325, 6998, 2605, 2728, 2729, 2730, 2731, 2632, 2733, 2734, 2735, 2736, 2737, 2058, 5598, 2740, 6211, 2638, 2542, 4508, 6405, 2746, 2647, 2250, 2653, 2750, 2751, 2752, 2753, 2754, 2017, 2756, 2757, 2162, 2660, 2760, 2761, 2762, 2763, 472, 2666, 2667, 2767, 1567, 2670, 4502, 4896, 2673, 2172, 2575, 2775, 2677, 776, 2778, 398, 996, 2282, 2682, 2671, 6596, 2019, 2786, 2787, 2788, 2789, 2790, 1661, 2792, 6468, 6646, 1373, 6968, 7045, 5978, 7023, 6908, 2853, 2745, 6814, 6955, 6767, 2354, 2887, 7050, 4743, 2810, 1804, 2212, 2813, 6719, 2715, 2816, 2817, 2818, 2819, 2820, 2821, 2822, 2823, 2524, 2825, 2726, 1387, 2527, 2829, 1943, 2831, 2832, 601, 2534, 2535, 2536, 1958, 2839, 2840, 2664, 2541, 2665, 5908, 2741, 1946, 1644, 2648, 2749, 1647, 2151, 2552, 7005, 2854, 2516, 1554, 856, 1060, 2759, 2860, 338, 1361, 2285, 1997, 2865, 2766, 2258, 6704, 2769, 4503, 3694, 2772, 1272, 1673, 1674, 2893, 575, 1600, 63, 2199, 2780, 2781, 2921, 2484, 6178, 2983, 4202, 1889, 2267, 2889, 2890, 2012, 2892, 2975, 612, 2895, 5765, 6378, 6362, 6561, 6917, 6317, 6984, 6683, 5190, 6302, 2806, 2907, 2908, 2994, 3129, 3028, 1190, 2913, 2914, 2915, 2916, 2917, 2718, 5098, 2153, 2982, 2922, 2523, 2824, 2925, 1254, 2794, 3006, 2828, 2929, 2864, 2931, 999, 600, 2835, 2836, 2637, 2838, 2739, 2939, 2944, 2149, 1840, 1510, 2645, 2945, 2847, 2748, 2959, 2850, 2950, 2852, 2953, 2121, 2856, 1856, 2957, 2958, 3049, 2960, 2862, 2140, 2345, 2964, 4102, 3398, 2967, 2869, 2969, 2871, 2872, 2972, 2783, 1374, 2993, 2976, 2878, 894, 3597, 2980, 4703, 2770, 1886, 2984, 3083, 2986, 2987, 5203, 2989, 2990, 2991, 5269, 3075, 3009, 6546, 1340, 6680, 6610, 6834, 6884, 2476, 6888, 6886, 3004, 4585, 4778, 3007, 3008, 6225, 2710, 3106, 2937, 3013, 3014, 2815, 3016, 3017, 1814, 3019, 2036, 3021, 3022, 2618, 2223, 5497, 3025, 1709, 1702, 2910, 5995, 5001, 3031, 1322, 998, 3034, 3501, 3036, 381, 2742, 5596, 3040, 5406, 3701, 2843, 1641, 3045, 2846, 2747, 2848, 3059, 3050, 2550, 3052, 356, 230, 2657, 2956, 2858, 2859, 3150, 239, 2663, 2962, 1664, 2268, 2965, 3397, 1367, 2271, 2870, 1370, 1797, 2873, 3996, 3093, 3076, 3077, 2849, 2261, 3080, 3081, 2837, 3099, 3183, 3085, 4203, 3087, 3084, 2538, 2938, 3060, 5544, 5354, 5126, 5025, 4924, 6635, 5715, 6285, 6763, 3268, 6406, 3103, 4680, 6644, 4980, 3107, 3612, 4870, 4053, 5724, 3206, 3113, 3114, 1206, 5733, 3117, 3118, 3119, 3120, 2583, 3122, 3123, 3023, 3125, 3126, 1302, 3027, 1120, 3130, 3131, 3132, 3133, 3033, 599, 3136, 3137, 3138, 3038, 3140, 3141, 1728, 3700, 470, 1924, 3225, 3147, 2348, 1866, 2955, 3151, 3152, 2951, 3154, 3252, 3156, 3157, 3057, 3159, 3160, 3161, 3162, 3163, 3164, 3165, 3065, 4398, 3067, 3169, 3069, 3692, 3172, 2571, 4898, 3193, 3902, 2479, 6286, 2973, 3180, 2981, 2685, 5002, 2427, 3185, 3186, 887, 3188, 3189, 3190, 3191, 6580, 3275, 5768, 4471, 5944, 5488, 6582, 6682, 6308, 6523, 3202, 3203, 5540, 2112, 403, 4111, 3264, 3209, 3210, 5905, 4028, 3213, 3214, 2007, 3216, 3217, 3218, 2919, 3220, 2683, 3222, 1882, 3124, 3246, 1523, 2933, 3303, 1952, 3230, 3030, 3232, 1498, 3234, 3235, 3236, 3237, 3238, 3239, 3039, 3241, 1824, 3699, 3244, 645, 1111, 3046, 3248, 3149, 3315, 3251, 3051, 3253, 3254, 2184, 3256, 3257, 3258, 2360, 1658, 3291, 3061, 3263, 1783, 3265, 3266, 3171, 3068, 4504, 2771, 2473, 3698, 798, 2209, 3903, 3277, 3153, 6399, 1679, 3181, 3282, 3199, 3089, 3364, 4204, 3323, 2249, 4803, 3289, 3290, 3361, 3292, 3293, 5348, 3295, 5547, 5453, 6159, 6158, 6057, 6457, 6356, 6556, 5373, 6119, 5472, 6218, 1849, 2842, 3310, 3211, 608, 3313, 3314, 1913, 3316, 3317, 3318, 3219, 3320, 3321, 3322, 3223, 3324, 3325, 3226, 57, 1210, 2409, 3330, 3231, 3332, 1497, 3334, 598, 3500, 3337, 3267, 3339, 3340, 3341, 2034, 3243, 3344, 2543, 2544, 3247, 3148, 3349, 3055, 3351, 3352, 3353, 3053, 3452, 3208, 3056, 3358, 3359, 3260, 3391, 2961, 3062, 3279, 3064, 3366, 1270, 3368, 3270, 3097, 3071, 3343, 3287, 3374, 3904, 3376, 3178, 2472, 3379, 3281, 3170, 495, 3383, 2357, 3385, 6078, 3309, 5304, 3389, 3390, 3461, 2693, 3393, 3394, 5688, 5235, 6436, 6335, 6235, 6490, 6087, 6187, 6471, 4487, 6381, 4762, 4562, 3408, 2008, 3410, 2044, 1707, 3413, 3414, 2033, 3416, 3417, 3418, 3419, 3420, 3355, 480, 3423, 3424, 3425, 3426, 3012, 3428, 1375, 3430, 3331, 1772, 3333, 1000, 3435, 2966, 3437, 2572, 3439, 3440, 3441, 5097, 3443, 3142, 3444, 3490, 6304, 3447, 3448, 3249, 4799, 3455, 3436, 2554, 3422, 3300, 3457, 2061, 3259, 3460, 3491, 3462, 3463, 2167, 3465, 4103, 3438, 2968, 3469, 3470, 3471, 296, 3486, 3509, 3475, 3476, 6388, 3478, 3479, 3480, 2936, 1904, 5877, 4505, 4205, 3573, 3487, 3488, 3035, 5870, 3497, 3492, 1330, 3494, 5144, 1074, 5091, 5742, 6338, 6161, 6391, 6311, 6359, 6282, 3205, 3079, 5838, 3508, 3574, 1524, 3511, 3108, 3513, 3514, 1731, 3516, 3517, 3018, 3519, 3520, 3521, 4299, 2688, 3524, 3525, 3326, 2030, 2932, 4105, 3029, 3431, 3532, 3533, 3434, 3335, 3484, 2935, 3538, 3539, 3540, 3541, 2630, 3543, 770, 3644, 6, 629, 2438, 3548, 3348, 2186, 3102, 3255, 3453, 3454, 2948, 3299, 3357, 3458, 3553, 3560, 3561, 3562, 3363, 3626, 3365, 3566, 3638, 3468, 3082, 4095, 3571, 4094, 3997, 3493, 3375, 3576, 2928, 6096, 3280, 2582, 3555, 3382, 3356, 3569, 3485, 2160, 1980, 3058, 3590, 308, 3592, 3593, 3594, 5344, 5745, 5642, 6143, 6242, 5134, 5234, 5833, 6034, 5248, 3605, 4671, 4372, 3608, 3609, 3610, 2738, 3585, 3613, 3614, 3615, 3616, 2245, 214, 3619, 3620, 3621, 3622, 3276, 3224, 3625, 3665, 1724, 3347, 4104, 3678, 1197, 3632, 3633, 3634, 3635, 3636, 3637, 4396, 3639, 3640, 3641, 3542, 3687, 3645, 3744, 5896, 5798, 3648, 2646, 3549, 3651, 2040, 3552, 3654, 3655, 3753, 3556, 3557, 3158, 3583, 3360, 3662, 2891, 3563, 3684, 3666, 3667, 3738, 3669, 3670, 3671, 3672, 3134, 572, 3675, 3676, 3677, 761, 2880, 3680, 3681, 3421, 4686, 3483, 3685, 3686, 3388, 3688, 3581, 3182, 2050, 5569, 3693, 2970, 1677, 3696, 4850, 6113, 6164, 6166, 6080, 6180, 2941, 3883, 4083, 1637, 1137, 3708, 3663, 3710, 3111, 1403, 3143, 3415, 3715, 3716, 3717, 3618, 3719, 3720, 3782, 4298, 3759, 3724, 3725, 3726, 5398, 3728, 3767, 3630, 3631, 3732, 3733, 3773, 3735, 3736, 3737, 4395, 3739, 3740, 3741, 3166, 3743, 3745, 4997, 1998, 371, 3748, 3749, 3650, 3751, 2709, 3756, 3754, 3554, 3853, 3757, 3659, 3760, 3761, 3762, 3763, 5805, 2526, 2765, 3829, 3042, 3568, 3770, 2863, 2971, 3834, 4999, 3474, 3905, 2977, 2758, 3779, 3780, 2882, 3221, 3852, 3752, 231, 3712, 3787, 5305, 4904, 3090, 1950, 3392, 2037, 3794, 1377, 4841, 4042, 5586, 6017, 5984, 3800, 5864, 5975, 6075, 5776, 5822, 4972, 3807, 3808, 3809, 3810, 5934, 3212, 3813, 3714, 3536, 3816, 1105, 3319, 2902, 3821, 3722, 3432, 2923, 3024, 3564, 4698, 8999, 2084, 3730, 3531, 2930, 2631, 3872, 3327, 3653, 3915, 3837, 3838, 3839, 3840, 3841, 3283, 3459, 3848, 3844, 3846, 3845, 3184, 2248, 3850, 3851, 2883, 3856, 2877, 3855, 3953, 3456, 3858, 3859, 3661, 3861, 3862, 3863, 3176, 3865, 3866, 3177, 5303, 3869, 3870, 3871, 3943, 3890, 3775, 3793, 3876, 2610, 995, 3879, 3880, 3952, 3575, 2662, 3884, 3786, 3886, 3887, 3888, 3889, 2123, 3891, 4369, 3893, 4526, 3895, 5445, 5153, 5553, 2777, 5952, 5851, 5660, 5960, 3982, 3875, 3906, 3907, 3908, 577, 3910, 1810, 3112, 4055, 3914, 3936, 3916, 329, 3918, 3919, 3920, 3921, 3718, 2021, 3924, 1822, 3354, 2130, 3928, 2428, 3642, 3032, 3534, 3934, 3956, 3836, 3523, 3668, 4012, 2656, 3546, 3941, 6301, 3972, 5601, 3945, 3072, 5595, 4044, 3949, 2148, 3951, 2802, 3791, 2661, 3955, 1894, 3857, 3958, 3589, 3964, 3961, 3909, 3963, 698, 3965, 3466, 3682, 3968, 3969, 3570, 1801, 3559, 2246, 3974, 2215, 3976, 3977, 3978, 3579, 3980, 3037, 3882, 1538, 3984, 3985, 3986, 3987, 3988, 3989, 3990, 3991, 3992, 3993, 2276, 3995, 3174, 2674, 5239, 4641, 5746, 5367, 5568, 5767, 5867, 5646, 4886, 4007, 4008, 4009, 4010, 3207, 3128, 3643, 4014, 4033, 4016, 4084, 4018, 4019, 4020, 3522, 4022, 4023, 4024, 4025, 4026, 2289, 5307, 4029, 2027, 4031, 4032, 4115, 4074, 4035, 4036, 3768, 3939, 4039, 3489, 4041, 743, 3843, 4045, 4144, 3467, 3947, 4048, 3849, 3387, 4051, 1704, 3329, 2454, 3729, 3957, 3558, 2032, 4060, 2439, 3962, 5807, 593, 2918, 3656, 5004, 4068, 3481, 2119, 1802, 3572, 3195, 3709, 3975, 1601, 3826, 3878, 4109, 3580, 4067, 2691, 3261, 1817, 701, 3286, 4086, 3288, 4088, 4089, 2940, 4091, 4092, 4056, 3673, 3771, 4096, 4327, 5548, 2368, 5620, 5706, 5515, 5785, 4983, 3048, 4006, 4107, 4108, 3828, 4110, 1762, 4038, 4113, 4114, 3200, 4116, 4117, 4118, 4119, 4120, 4021, 4122, 1921, 2924, 4125, 1708, 4093, 5207, 2528, 4130, 4131, 4132, 3135, 1717, 4135, 4136, 4137, 3139, 4139, 4140, 4141, 4030, 3179, 4145, 4227, 5194, 1697, 4148, 3649, 4050, 2067, 3981, 2052, 1452, 3822, 4192, 4058, 2934, 4159, 4160, 4177, 4161, 3950, 4164, 3860, 1779, 3788, 4168, 4169, 4170, 3734, 3923, 4173, 4075, 1602, 1596, 4238, 4178, 4179, 4175, 4234, 3894, 2755, 4195, 3966, 4186, 4187, 3369, 4189, 261, 4191, 4165, 4193, 1992, 2690, 3674, 5578, 5626, 5121, 5573, 5619, 5419, 5671, 5046, 1527, 4248, 4544, 4208, 2611, 4639, 4090, 4212, 3472, 4214, 4233, 4216, 3711, 4218, 4219, 4220, 3623, 4222, 4123, 4124, 4225, 3412, 4097, 8106, 4229, 4230, 4231, 4232, 3835, 4040, 4015, 4236, 4237, 4138, 4239, 4240, 4241, 4295, 4243, 4306, 4245, 3946, 3240, 2855, 4249, 4250, 1166, 1819, 4351, 4254, 2488, 207, 4257, 4059, 3954, 4061, 4358, 3411, 4163, 2002, 4265, 2867, 4087, 3785, 3350, 3911, 4271, 3607, 4273, 4274, 4275, 4077, 4013, 4079, 4279, 4331, 4180, 3121, 4283, 4284, 4285, 4286, 1454, 4288, 4289, 3755, 4291, 3690, 1693, 4294, 4342, 4437, 5137, 5338, 5537, 4121, 4469, 5473, 5264, 4352, 5346, 3406, 4307, 4308, 3527, 4210, 4311, 4312, 4617, 4314, 4315, 4316, 3799, 4318, 4319, 4320, 4321, 3823, 4323, 4324, 4325, 378, 2590, 4228, 4329, 4330, 4339, 3628, 4415, 3750, 3066, 4336, 4296, 4338, 4414, 4341, 2296, 4343, 3769, 4443, 3766, 298, 3381, 1045, 4263, 392, 4353, 4057, 4451, 4354, 4355, 4256, 4157, 4361, 4359, 4360, 4458, 4262, 2912, 4364, 4365, 4156, 4367, 4368, 4381, 4370, 1698, 4454, 3874, 1811, 4375, 2310, 4377, 4378, 4080, 4425, 4287, 4382, 4383, 4384, 4066, 4386, 4387, 4388, 4389, 4043, 4391, 4151, 4393, 4112, 3938, 4337, 4037, 3567, 5420, 4695, 4146, 4978, 5083, 5391, 5469, 4866, 1732, 4408, 4409, 4410, 3777, 4412, 4413, 4439, 3450, 4416, 4448, 4418, 4419, 4420, 4421, 3518, 4223, 4363, 4466, 4282, 8600, 2127, 4305, 1928, 2732, 4133, 4506, 4335, 4436, 4293, 4512, 3774, 4440, 3942, 4442, 3868, 4542, 2024, 1098, 706, 4517, 4449, 3305, 4251, 3215, 4431, 5405, 3550, 4456, 1631, 4461, 4259, 637, 3537, 4362, 3307, 4264, 4292, 3798, 5306, 2135, 3167, 4470, 4432, 4553, 4373, 4374, 3015, 3790, 3824, 4478, 4379, 3407, 2903, 4482, 5003, 4217, 4385, 2706, 3026, 4322, 4509, 2725, 4903, 4143, 3155, 1703, 4184, 4538, 4582, 4493, 4475, 5384, 5324, 4069, 5085, 4847, 5271, 3584, 4588, 4507, 3582, 4572, 4510, 3262, 741, 4213, 4514, 3104, 4516, 4444, 4518, 4519, 3273, 4521, 4394, 4523, 1203, 4525, 3596, 4564, 4528, 4529, 4530, 4531, 4532, 4072, 4435, 3937, 4536, 4438, 4429, 2125, 4539, 4290, 4626, 3789, 2866, 5197, 3495, 1906, 4309, 4548, 1873, 4453, 1177, 4651, 3652, 4555, 1826, 4557, 4558, 4559, 4560, 4462, 2793, 4563, 4627, 4427, 4128, 4567, 3054, 4569, 4524, 129, 4473, 4573, 4574, 3842, 4371, 3979, 4578, 1234, 3948, 4485, 4166, 2436, 4584, 3011, 4129, 404, 4606, 1966, 4590, 1395, 4592, 4593, 4594, 4675, 4596, 2366, 3721, 4520, 3881, 5179, 5279, 4977, 2784, 4332, 4688, 2118, 4608, 4609, 4610, 4587, 3105, 4513, 4614, 4242, 4616, 4547, 3819, 4619, 4620, 4621, 4522, 4623, 4624, 310, 699, 4664, 2026, 4629, 4630, 4631, 4632, 4392, 4568, 4535, 4636, 4637, 5006, 4734, 4640, 4484, 3691, 2894, 3781, 4445, 4185, 4468, 4349, 4434, 4591, 2098, 3587, 4380, 4252, 4625, 4556, 3959, 4658, 2139, 3933, 4661, 4662, 4663, 4004, 4452, 1833, 4188, 2911, 4317, 3362, 4672, 4174, 4674, 5191, 3742, 4577, 4447, 4685, 4270, 2508, 5005, 4667, 4155, 4749, 4665, 3115, 3912, 4176, 4767, 4750, 1713, 4152, 330, 4575, 4682, 4552, 4697, 3926, 5088, 5087, 4551, 2619, 4654, 4158, 5044, 4787, 4707, 4708, 4062, 4710, 4549, 1181, 4713, 4714, 2705, 4716, 4417, 4718, 3820, 4720, 4721, 4722, 4723, 4724, 3409, 4745, 205, 2412, 4729, 4730, 4731, 4206, 3629, 4739, 4735, 4736, 4537, 5007, 4433, 4740, 4441, 4642, 3005, 3091, 4742, 705, 4747, 4149, 4784, 4650, 368, 2279, 3932, 4201, 4755, 4756, 4757, 3723, 4659, 4676, 4809, 4586, 4464, 4764, 4737, 4766, 4258, 1805, 4679, 3109, 4771, 4772, 4773, 4810, 4570, 4776, 4777, 2410, 797, 4754, 4781, 4463, 4783, 4849, 4633, 4786, 4806, 4788, 4789, 4790, 4791, 4792, 4793, 4794, 4795, 4796, 4797, 4798, 3551, 4844, 4738, 4678, 5090, 4989, 4805, 5089, 4807, 4808, 4861, 4874, 4887, 4911, 4613, 4814, 4839, 4816, 4817, 4819, 4880, 4554, 4065, 1820, 1204, 3096, 4845, 1807, 2712, 4829, 1827, 4027, 4106, 405, 4534, 4822, 4221, 1857, 4054, 4732, 4840, 4583, 4925, 4683, 2265, 4541, 4546, 4488, 4648, 3047, 3372, 4653, 3298, 4753, 1198, 3792, 4765, 4656, 4857, 4858, 4859, 4860, 4770, 4862, 4863, 4864, 5008, 4711, 4889, 4868, 2659, 1207, 4871, 2833, 4873, 4910, 8098, 4278, 2885, 4643, 4669, 4882, 4881, 4782, 4883, 4884, 4785, 4905, 4906, 3526, 4867, 4944, 4891, 4892, 4893, 2264, 3367, 3070, 4897, 4450, 592, 2393, 4954, 4491, 4690, 4967, 4684, 4052, 4907, 4908, 4709, 4974, 4912, 2175, 4913, 4914, 4915, 4916, 4611, 4918, 4919, 4920, 4692, 4922, 4923, 5019, 3095, 2383, 4820, 4828, 4715, 4830, 4930, 4832, 4885, 4834, 4635, 4836, 4865, 546, 2028, 2400, 4694, 4842, 4769, 4705, 4941, 4085, 5043, 4748, 4984, 4949, 4751, 4565, 2899, 2714, 4854, 3657, 4956, 3660, 4758, 4959, 5058, 5017, 1256, 4963, 4727, 2999, 4966, 2200, 4979, 4134, 3306, 4971, 4872, 4973, 4480, 695, 4876, 4877, 4693, 5047, 4712, 2900, 4942, 4981, 4268, 4890, 4744, 2283, 4706, 4486, 3591, 4991, 5079, 4940, 4196, 4996, 5021, 4446, 4366, 4953, 5052, 4607, 3380, 4704, 4995, 2719, 4618, 1300, 4965, 5077, 4376, 4761, 5041, 4813, 5054, 4815, 5068, 4545, 5053, 5024, 4821, 4147, 4823, 4824, 5120, 3094, 3173, 5072, 4728, 2830, 5039, 2431, 4938, 4490, 2668, 4660, 4297, 2558, 2920, 5096, 5040, 4741, 3595, 4172, 4926, 5045, 4746, 2455, 4848, 4649, 3565, 4851, 4852, 1737, 2297, 5020, 4951, 4457, 2988, 4459, 5060, 5159, 2363, 4668, 4921, 5065, 4076, 5067, 2979, 4779, 2876, 4843, 5070, 4673, 229, 5171, 4986, 5110, 4581, 5125, 4082, 4696, 3815, 5182, 4681, 5109, 4990, 4960, 5042, 2904, 4982, 5092, 5093, 5094, 5095, 5140, 4775, 4818, 2744, 1838, 502, 4985, 5184, 4804, 5011, 4281, 4838, 5186, 4909, 5010, 5073, 5012, 5013, 5014, 4950, 5016, 5062, 3020, 5180, 5156, 5075, 5022, 5023, 512, 2797, 5122, 2897, 5028, 1545, 5130, 5131, 5132, 5133, 5033, 5135, 5136, 5036, 5138, 4595, 4670, 5141, 3297, 5189, 4127, 5166, 5146, 5147, 3604, 4049, 5150, 5240, 69, 4888, 5154, 899, 5220, 5157, 4357, 5061, 5059, 4260, 5259, 5163, 2020, 5064, 5245, 3967, 5168, 2992, 5069, 4946, 5172, 5128, 4474, 5175, 97, 5177, 5178, 5078, 5176, 4622, 4580, 5082, 5213, 5185, 4540, 3930, 5188, 3731, 5124, 4774, 5192, 5193, 4246, 4994, 5196, 4645, 4689, 5199, 3765, 4313, 4481, 2555, 5204, 5116, 5032, 2211, 5208, 4752, 5210, 4142, 5212, 5284, 5214, 5215, 5216, 5217, 5218, 5219, 5256, 3832, 5222, 5223, 5319, 2495, 3627, 5127, 846, 5129, 2106, 3931, 4952, 4831, 5233, 5329, 3395, 2636, 5237, 4266, 3814, 4081, 2398, 2074, 5143, 4476, 307, 5246, 3294, 4825, 5249, 4350, 5221, 5252, 3175, 1299, 2298, 5320, 5242, 4422, 5162, 5160, 4182, 5360, 72, 3250, 5165, 3960, 897, 5291, 1412, 5170, 113, 3304, 5173, 3689, 3545, 5308, 4272, 4677, 5280, 5312, 5361, 2711, 5027, 5285, 3683, 5287, 4760, 2474, 5290, 5369, 5292, 5293, 5294, 5364, 171, 3847, 5376, 4244, 3269, 3913, 4543, 4167, 4267, 5074, 4566, 4666, 2844, 4976, 5310, 2512, 5381, 5313, 5314, 504, 5316, 4917, 5018, 3086, 3338, 3229, 5323, 3864, 5267, 2312, 5243, 3802, 5228, 3512, 5331, 5332, 5232, 4931, 5386, 5034, 5337, 4935, 5339, 4533, 3885, 5342, 5142, 5426, 5195, 4652, 2879, 872, 3647, 5048, 5250, 5352, 5051, 5358, 3877, 5356, 4070, 5056, 5355, 5454, 5363, 5382, 5362, 5460, 5263, 5365, 5366, 4465, 896, 5268, 5449, 5270, 5071, 5164, 5374, 5375, 5275, 395, 5378, 5379, 5380, 5281, 5461, 5383, 5114, 5084, 5286, 3783, 3197, 3196, 3073, 3449, 5392, 5393, 4993, 5464, 5396, 3427, 3827, 4126, 4390, 907, 4154, 3088, 4927, 4571, 3544, 5407, 5408, 5349, 5410, 9003, 5412, 5484, 5414, 5385, 5416, 5417, 5318, 5055, 2324, 5415, 5422, 908, 5325, 5463, 5443, 4945, 5428, 3346, 5430, 5431, 5432, 5433, 1543, 5435, 5455, 5437, 5438, 5309, 3204, 5441, 5035, 5526, 3092, 5462, 5187, 5447, 4345, 5470, 5351, 2238, 5315, 2678, 5459, 5155, 2954, 5457, 5113, 5554, 5525, 5482, 2861, 697, 3498, 1975, 5253, 5466, 5467, 3271, 5322, 5471, 1835, 5357, 5474, 5423, 5476, 2881, 5244, 5278, 5480, 5226, 2022, 4224, 5493, 5485, 5486, 5487, 2798, 4489, 5490, 5491, 5492, 5584, 5494, 5495, 5496, 3825, 4424, 5583, 5520, 5411, 4348, 5582, 5448, 5465, 5506, 5507, 5508, 4947, 5510, 5370, 1108, 5513, 5514, 5479, 5117, 5517, 5518, 5519, 4644, 5521, 5522, 8304, 5368, 5425, 4455, 1011, 5335, 4968, 5530, 5531, 5532, 5533, 5534, 5535, 5536, 5238, 1735, 901, 5541, 5558, 5347, 5610, 5489, 5086, 4687, 5030, 5609, 5550, 5509, 5552, 5566, 5559, 5442, 5647, 4955, 5589, 5653, 4957, 4958, 5545, 5640, 4334, 4047, 4826, 4763, 5266, 2672, 4430, 4768, 5247, 5254, 5009, 5475, 4812, 5261, 5608, 5409, 790, 5350, 5663, 5587, 3515, 5593, 5585, 5434, 4615, 5336, 5657, 5590, 5591, 5592, 5684, 5594, 5334, 4347, 3940, 5681, 4340, 3944, 4344, 4005, 3892, 5683, 5205, 3854, 5607, 5677, 5359, 5643, 5705, 2947, 5613, 5614, 3098, 5616, 5617, 5618, 5230, 505, 1259, 9000, 4726, 1561, 3464, 5690, 5628, 1806, 5719, 2580, 5031, 5326, 3116, 4634, 5636, 5637, 4837, 5440, 5662, 5394, 5546, 5564, 5716, 5645, 5543, 4937, 4717, 5450, 4153, 5651, 5260, 5632, 5265, 5183, 4855, 5740, 5709, 4657, 3776, 5661, 2399, 4253, 5664, 5151, 2896, 5666, 5667, 5668, 4928, 5670, 5625, 5707, 5673, 5274, 5675, 5174, 4423, 5678, 4280, 5763, 4477, 2587, 1650, 5713, 5685, 5686, 5687, 3373, 5689, 5726, 5691, 5692, 5693, 5694, 5695, 5730, 2380, 3477, 3377, 1235, 3110, 4411, 5762, 7404, 5711, 5787, 5772, 5708, 4987, 5710, 4063, 4277, 5784, 5714, 5341, 5169, 5317, 5718, 5630, 5720, 5721, 5211, 2497, 26, 5786, 5649, 5727, 3442, 5819, 5631, 5752, 5732, 4733, 5734, 5555, 5736, 1127, 1130, 5739, 5717, 5741, 5562, 5816, 5744, 5557, 2397, 5747, 5748, 5528, 5750, 5751, 5811, 5567, 4929, 4655, 4515, 5757, 5758, 5759, 5760, 5764, 5231, 5817, 5575, 5227, 5753, 4964, 5167, 5038, 302, 5770, 5277, 5672, 5273, 5674, 1321, 3336, 4064, 5778, 5262, 5076, 5781, 4992, 5539, 5813, 5790, 5777, 4150, 5789, 5241, 5766, 5792, 5793, 5794, 5830, 5796, 3578, 3747, 3041, 4190, 3970, 3664, 3764, 3308, 5852, 4835, 4162, 5808, 5890, 5810, 1005, 3311, 5885, 5814, 4492, 5843, 5863, 5818, 2943, 5820, 5821, 5523, 2496, 10, 306, 5886, 5827, 1406, 5321, 2773, 4467, 4875, 5633, 3811, 5635, 5723, 4969, 5735, 5880, 5839, 5118, 5841, 5343, 5644, 3983, 1821, 4073, 5648, 5826, 5676, 5152, 5561, 4356, 5861, 5655, 5755, 5806, 5658, 5659, 5859, 5842, 5853, 2145, 5780, 5951, 1896, 5962, 373, 2039, 5888, 5871, 974, 5907, 5773, 5875, 5876, 5565, 5588, 5879, 277, 4933, 5181, 4576, 5840, 5913, 5926, 1047, 5940, 5889, 5909, 5669, 5892, 5893, 1670, 5579, 3746, 4046, 2851, 3935, 5258, 3806, 3973, 5947, 3510, 5856, 5809, 5973, 5377, 5974, 5910, 5529, 5756, 5050, 5914, 4034, 5916, 5941, 5918, 5929, 5920, 5921, 2224, 5923, 711, 5388, 3812, 5927, 5824, 6019, 5930, 5931, 5932, 5933, 1257, 5935, 5835, 5937, 1627, 5915, 5846, 5641, 5844, 5580, 5961, 5845, 5994, 5965, 5948, 5970, 5869, 5353, 5656, 5333, 6010, 5743, 2694, 6052, 4235, 3778, 5959, 6044, 305, 6060, 5964, 5413, 5966, 5954, 3284, 5878, 5788, 5571, 1989, 4605, 6009, 5774, 5775, 5037, 3386, 3530, 5882, 6045, 6077, 1743, 5976, 5985, 5848, 5957, 2995, 5989, 5967, 6071, 5992, 5993, 6046, 6029, 3830, 3929, 6068, 3784, 6000, 5611, 6002, 3342, 6020, 1723, 1323, 824, 6008, 6055, 6054, 2440, 5112, 6013, 6014, 5340, 6109, 1309, 6018, 5272, 5968, 5621, 5622, 210, 5524, 311, 407, 5887, 4638, 6091, 6120, 4853, 1930, 5872, 6015, 6027, 6035, 2295, 6037, 6030, 5850, 2396, 3922, 5942, 5111, 5680, 5, 6041, 8402, 5549, 4879, 4628, 2094, 6042, 5958, 6144, 5255, 5858, 6081, 5257, 6059, 5939, 5945, 6033, 6085, 6064, 6065, 93, 5665, 74, 696, 5812, 5371, 5149, 6070, 5574, 6076, 490, 2385, 6079, 3867, 5825, 5404, 5831, 6172, 4269, 6086, 6105, 5446, 6089, 6157, 6093, 6092, 6191, 6094, 6188, 3679, 6097, 3817, 3617, 3445, 1916, 2043, 1715, 5883, 5576, 1741, 6107, 1640, 5209, 6110, 6190, 6012, 6115, 6179, 6116, 2226, 5418, 2107, 6142, 1842, 6021, 1307, 3233, 6039, 5139, 4479, 6151, 6129, 6130, 6131, 6192, 6032, 6134, 4932, 5981, 5936, 5836, 5560, 809, 6040, 5969, 6153, 5823, 2196, 46, 5080, 2776, 6149, 6049, 3758, 2095, 68, 6118, 6210, 6043, 6048, 5956, 6194, 6154, 6063, 5860, 2195, 5629, 5917, 6051, 5288, 6168, 5866, 800, 6082, 6184, 6227, 5949, 5874, 1686, 6084, 6254, 5865, 6214, 5873, 6185, 6182, 1893, 1944, 6281, 5483, 6224, 5345, 6206, 1355, 6260, 6231, 6193, 6258, 6128, 6196, 2259, 2358, 2684, 2857, 3658, 6250, 6290, 1828, 4561, 6289, 6207, 6208, 6067, 6277, 2841, 6212, 6213, 6279, 6215, 5862, 6217, 6292, 406, 6121, 6122, 6022, 6272, 6300, 6251, 4846, 6323, 6271, 6229, 6223, 5638, 6133, 6252, 6234, 5834, 6236, 6237, 6238, 1730, 6240, 5063, 6264, 2609, 6062, 3772, 6221, 6248, 6273, 6267, 6265, 5855, 1425, 6313, 6175, 6312, 6351, 5421, 5857, 6241, 4460, 3535, 2898, 6342, 6047, 1496, 6309, 4869, 6269, 6348, 6228, 6183, 297, 5478, 6274, 6353, 6276, 6324, 6278, 5979, 6307, 4962, 1655, 6261, 6284, 6294, 3278, 6173, 4346, 6306, 2905, 6291, 6318, 6293, 6385, 6295, 6296, 6297, 2926, 6299, 6377, 4759, 2311, 5749, 4472, 5731, 6390, 6058, 6280, 6181, 6314, 6155, 2996, 6147, 6114, 5015, 6016, 2292, 6253, 6330, 4833, 6357, 5251, 509, 6244, 6423, 5987, 6036, 6395, 4071, 6329, 3833, 6371, 6266, 6415, 5439, 6136, 6137, 6138, 6419, 5390, 6340, 6430, 2888, 5986, 3917, 4310, 2946, 6387, 6249, 5451, 6325, 5829, 6431, 1401, 6397, 6256, 6257, 5570, 6259, 6360, 6332, 1996, 6363, 5236, 6453, 6366, 6367, 6247, 4936, 6328, 6331, 6463, 6186, 6074, 6375, 6384, 6358, 5456, 6379, 6428, 6176, 5615, 6383, 6432, 6394, 4948, 6448, 2779, 6389, 6407, 2927, 6392, 6393, 6485, 4961, 6417, 2192, 2290, 2689, 6443, 3187, 707, 3586, 6491, 6339, 9001, 6171, 5458, 2540, 6345, 1240, 6145, 6413, 6414, 6449, 6416, 6163, 6418, 6465, 4215, 6421, 6422, 5919, 6424, 2275, 496, 2607, 5682, 6470, 6066, 3433, 2011, 6433, 6434, 2998, 6427, 6337, 6439, 6420, 5988, 6442, 6469, 6347, 3227, 6124, 6088, 6543, 6515, 6189, 6350, 303, 6550, 1911, 6538, 5847, 5953, 5527, 2650, 5950, 6534, 5119, 3146, 5779, 5791, 6090, 3818, 3547, 6150, 6542, 6529, 4328, 6472, 5971, 6474, 6511, 6476, 6477, 6548, 6479, 3192, 5854, 6444, 4719, 6446, 5982, 6486, 6547, 5977, 6489, 6525, 5815, 6492, 971, 6494, 6562, 3446, 2251, 2150, 2350, 6558, 3451, 6475, 1782, 1681, 6230, 4226, 6563, 6508, 6509, 6535, 6575, 3384, 5634, 6514, 6578, 6516, 5424, 6518, 5103, 4326, 6521, 6450, 5627, 6528, 6577, 925, 7, 5387, 3242, 6530, 6365, 1384, 6533, 6560, 6478, 6536, 6537, 5577, 2827, 6540, 6541, 5372, 6263, 5081, 6112, 2809, 6587, 6369, 6460, 6364, 6386, 6519, 2886, 3831, 6555, 6557, 5158, 6612, 2845, 5542, 6209, 6607, 2963, 6268, 6445, 5837, 6467, 5049, 6370, 6567, 5066, 5881, 6368, 6574, 6310, 6653, 6625, 5868, 6579, 2997, 6346, 6609, 5282, 6435, 6585, 4183, 6669, 6341, 6589, 5884, 6591, 6592, 6593, 6594, 6595, 2884, 2687, 6676, 2985, 3285, 6658, 1813, 1682, 6632, 6628, 3245, 6333, 6608, 6671, 6675, 5828, 5891, 6031, 6614, 5148, 6616, 6050, 6618, 2814, 6641, 6621, 6622, 1010, 941, 6527, 6627, 6681, 6705, 1426, 6630, 6631, 6532, 6025, 4333, 6554, 6636, 6637, 1793, 6735, 6640, 5943, 6710, 6487, 208, 3145, 4579, 6743, 6473, 6718, 5452, 5327, 6583, 6584, 6334, 6456, 5738, 6657, 2768, 2306, 6219, 6661, 6662, 6685, 6712, 5963, 6726, 5572, 6668, 6687, 6361, 6709, 6730, 6645, 6674, 6141, 370, 6753, 6722, 6551, 192, 6544, 6165, 4483, 6684, 1536, 6686, 4017, 6688, 6689, 6408, 6691, 6692, 6693, 6694, 6135, 6696, 6697, 6776, 2270, 2469, 6758, 6795, 3168, 5769, 5311, 6233, 6790, 6690, 6777, 6245, 6570, 4181, 1685, 6246, 6315, 6651, 6749, 748, 6760, 6320, 6522, 5328, 4939, 5516, 1799, 5436, 6728, 3063, 6720, 6652, 6053, 6733, 6634, 6771, 5938, 6270, 1794, 6023, 5761, 6513, 6817, 6747, 5754, 5538, 3371, 6842, 6586, 4811, 6140, 6517, 6380, 6355, 6783, 5556, 4827, 6549, 6757, 1264, 2942, 6287, 6695, 6762, 6830, 6764, 6729, 5912, 5725, 6847, 6769, 948, 1171, 1394, 6773, 6706, 2444, 3144, 6851, 6617, 6679, 1800, 8301, 6782, 6642, 6808, 6785, 6786, 6787, 6816, 6789, 5161, 6791, 6792, 6793, 6794, 6892, 6796, 2743, 6876, 3043, 6859, 6858, 6649, 1338, 6828, 6895, 6875, 6807, 5650, 6809, 1544, 6811, 6866, 6714, 6861, 6815, 6890, 6841, 6896, 6754, 6820, 6440, 6571, 5551, 6319, 6825, 4511, 6654, 2812, 6819, 6531, 6148, 6832, 6833, 6906, 6835, 5737, 6822, 6838, 6839, 6840, 6742, 6647, 4255, 6938, 8400, 6942, 6768, 6664, 6849, 6569, 6863, 6948, 6288, 6715, 6667, 1508, 4856, 6873, 6916, 6954, 6932, 6572, 6678, 5624, 6952, 6633, 6856, 2796, 6947, 6869, 6484, 893, 1695, 6482, 6774, 6707, 6862, 6857, 2075, 6879, 898, 6974, 2326, 6752, 6784, 6885, 6868, 6073, 6907, 6967, 6559, 6860, 6897, 5512, 6852, 6914, 6139, 5990, 6977, 2875, 6960, 2574, 975, 874, 2509, 6934, 6989, 6874, 6909, 6987, 2978, 6894, 9300, 5115, 6845, 6716, 6923, 3328, 6919, 6920, 6821, 708, 7017, 9, 6481, 6826, 6927, 6970, 6929, 6930, 5991, 5389, 6933, 6373, 6935, 6936, 6982, 6660, 6939, 6985, 6965, 3611, 5481, 6659, 5225, 6946, 6748, 7043, 4550, 2808, 7049, 7038, 6913, 2906, 6732, 2307, 6957, 6095, 2974, 6877, 7032, 6996, 6963, 6812, 7041, 7004, 6452, 6864, 7047, 7028, 6761, 6770, 4589, 6352, 7008, 7006, 255, 7009, 6734, 6980, 4902, 6354, 7082, 6615, 7039, 6831, 7010, 6824, 2255, 6990, 6867, 6992, 6993, 6994, 6995, 7062, 56, 2826, 7077, 7089, 6327, 7076, 6303, 6566, 6853, 7007, 6620, 7040, 6910, 4647, 6539, 6765, 7014, 7087, 6915, 7063, 6220, 6924, 7117, 6921, 6961, 7090, 7057, 7109, 6464, 6624, 2532, 7058, 6951, 7018, 7061, 7033, 7034, 7026, 6950, 6069, 6778, 6823, 7019, 7108, 6755, 2654, 6737, 6725, 7141, 6969, 6565, 7092, 6928, 7148, 6156, 6941, 2679, 7016, 7149, 7127, 7123, 6779, 7059, 6573, 6376, 7096, 7162, 6316, 7068, 6843, 746, 6195, 7069, 7070, 7114, 6524, 6772, 396, 7075, 6738, 2676, 6512, 7151, 7080, 7154, 6846, 7134, 6944, 2834, 7086, 7021, 7088, 7053, 7122, 7091, 7150, 5581, 7094, 7095, 7163, 7097, 7185, 2634, 2031, 6480, 1329, 5057, 6321, 2807, 7106, 7107, 7140, 6111, 6322, 215, 6639, 7113, 7146, 5783, 7181, 7042, 6855, 7212, 6721, 7187, 596, 7012, 4527, 3272, 7220, 7027, 2547, 7029, 7030, 6931, 4261, 7072, 7193, 7183, 6724, 6061, 2335, 5654, 7208, 7194, 3429, 6425, 9002, 7046, 7169, 7171, 7192, 1205, 7060, 4934, 2468, 7051, 7179, 7218, 1284, 2692, 6943, 7159, 7054, 6966, 7071, 6677, 7221, 7165, 6713, 6613, 7064, 7074, 6911, 808, 2197, 7173, 6305, 7175, 6160, 7177, 7256, 7024, 7180, 1436, 7115, 95, 2491, 6461, 6986, 7264, 7226, 6756, 2374, 6991, 6981, 7234, 7241, 7195, 6976, 7252, 2686, 2785, 6083, 2764, 1431, 6447, 6717, 7105, 7250, 5771, 7240, 5500, 5922, 7295, 6564, 7213, 2565, 7305, 7216, 6962, 7130, 7111, 6458, 7267, 7137, 7152, 911, 503, 7249, 3370, 5289, 7239, 6829, 7230, 7161, 7232, 597, 98, 7235, 7037, 7126, 7138, 7128, 4970, 3925, 7315, 7286, 7253, 7245, 7084, 6887, 7345, 7186, 7278, 7329, 7044, 7215, 7207, 7110, 7352, 7275, 7281, 1610, 6576, 2287, 6126, 7120, 7065, 6665, 6937, 7359, 7280, 7170, 7336, 2198, 7273, 1595, 7358, 7174, 7277, 888, 6429, 7158, 6243, 7349, 6590, 2494, 7225, 7223, 7287, 7288, 7313, 6889, 6775, 4194, 7293, 7294, 7311, 1065, 965, 7298, 7314, 2253, 1638, 7312, 6813, 2152, 7078, 812, 682, 6226, 7323, 7214, 6666, 6462, 6891, 7389, 7306, 6988, 7372, 7178, 7167, 5652, 5123, 1809, 7342, 6953, 7055, 7079, 3529, 5972, 1196, 7370, 7373, 6731, 7390, 994, 595, 7698, 7035, 3873, 6736, 166, 6510, 7191, 7147, 7347, 7262, 5029, 7346, 6568, 1847, 7382, 7328, 7450, 7365, 7246, 7260, 7386, 7355, 2463, 7375, 7129, 7453, 7362, 7445, 7364, 7265, 7377, 7367, 7268, 6880, 7430, 7153, 1048, 6878, 6871, 7457, 5477, 266, 4247, 7379, 7380, 7903, 7116, 7407, 5906, 7440, 7456, 7387, 5955, 7188, 7433, 7385, 7475, 7393, 7394, 7395, 2563, 67, 7485, 7477, 7493, 2165, 2511, 7189, 7458, 7326, 7490, 7483, 3010, 7409, 7247, 6553, 6132, 7486, 7254, 7414, 6239, 7272, 7418, 7052, 7420, 6127, 1313, 7423, 7424, 7131, 693, 7523, 7119, 7429, 5983, 7431, 7432, 7466, 7434, 594, 295, 7437, 7361, 6964, 7454, 6611, 7465, 1908, 6912, 6708, 6655, 6174, 7331, 7248, 7441, 7351, 7251, 7546, 6972, 7332, 1383, 6374, 7459, 7461, 2791, 6958, 7538, 7285, 7366, 6893, 7244, 7340, 7164, 7470, 7318, 6870, 6663, 7539, 7255, 5980, 7533, 4646, 7479, 7480, 7550, 6638, 7504, 1639, 6751, 7551, 7495, 7487, 7266, 7421, 7506, 7491, 7492, 2443, 7494, 7586, 6975, 2390, 7222, 2344, 7593, 1740, 7583, 540, 7582, 7505, 7590, 7507, 7596, 7509, 7410, 7578, 7488, 6626, 7514, 7515, 7353, 7517, 6926, 3927, 7520, 7521, 1914, 7527, 5276, 7567, 6581, 7563, 7083, 7451, 6326, 7330, 7532, 7576, 7534, 7535, 3577, 7438, 5429, 5729, 7564, 7447, 1440, 7270, 399, 7631, 7145, 7547, 7647, 7549, 7542, 7597, 7573, 6216, 2346, 2391, 7579, 7655, 7396, 2337, 7615, 7274, 7559, 7627, 7640, 6028, 7289, 7067, 6648, 7160, 6426, 7575, 1285, 3971, 7592, 7132, 7633, 7623, 7611, 7656, 6404, 7580, 630, 493, 195, 6520, 7673, 7587, 6865, 6382, 7606, 7121, 7674, 7659, 7594, 7595, 6739, 7651, 7693, 7541, 1891, 1830, 1733, 7643, 7679, 7269, 7690, 7607, 7608, 7609, 7155, 7678, 6971, 7682, 7660, 7708, 7066, 7473, 7443, 2146, 7589, 7706, 7322, 6766, 7639, 610, 7722, 7712, 7227, 7217, 7625, 7548, 7544, 4078, 7598, 7536, 6255, 6372, 6167, 7446, 6623, 7182, 1310, 7621, 7356, 1195, 7641, 7648, 7556, 7649, 6672, 7697, 7652, 1742, 7654, 2080, 7711, 1407, 7444, 7334, 7638, 7661, 7333, 7304, 7664, 7727, 7581, 1594, 7743, 6643, 7283, 7767, 6169, 7511, 7692, 1101, 7599, 7677, 7758, 7369, 4276, 7686, 394, 7584, 585, 7261, 7705, 7687, 7688, 7636, 7732, 3078, 7749, 7719, 7694, 7695, 7696, 7751, 7793, 2247, 7798, 1746, 6918, 1642, 1845, 7363, 7675, 7707, 7774, 7557, 762, 7512, 813, 6741, 7650, 7614, 7383, 7562, 7618, 7528, 7783, 7720, 2163, 7777, 7335, 2284, 1404, 7715, 7756, 7629, 5849, 7645, 7632, 7668, 7733, 7635, 196, 7825, 3345, 7236, 7628, 7724, 7814, 7773, 7663, 2426, 1494, 7741, 7448, 7290, 7325, 7786, 7764, 7210, 202, 7319, 344, 7813, 2652, 6526, 7759, 7561, 6882, 7510, 7112, 7765, 7853, 194, 7789, 7769, 7689, 1796, 7292, 7830, 7558, 7771, 7776, 7823, 7133, 7779, 7807, 7781, 487, 7900, 7816, 7015, 5145, 7804, 7531, 7620, 7790, 7752, 7827, 961, 7794, 7795, 692, 7809, 7893, 7810, 7898, 2136, 7822, 1861, 1910, 2727, 7806, 7545, 7808, 7897, 7709, 7568, 7565, 7462, 7739, 7815, 7337, 7817, 7818, 7025, 7013, 7768, 5832, 7877, 7780, 7717, 7476, 7891, 7921, 7829, 694, 7831, 7832, 7136, 7834, 7835, 7229, 6979, 94, 294, 7048, 7667, 7142, 7646, 519, 7463, 7704, 7888, 7824, 7848, 7894, 7530, 7219, 7933, 7243, 1009, 7341, 7836, 7460, 7426, 5563, 7746, 7945, 7747, 7464, 7778, 7866, 7943, 7665, 7869, 7258, 7957, 486, 7922, 7874, 7906, 7676, 7892, 7840, 7839, 5444, 1696, 7876, 7591, 1788, 1509, 6940, 7478, 7925, 7889, 7890, 7927, 7990, 1887, 7950, 7895, 7962, 7909, 7993, 2088, 1985, 611, 981, 880, 7513, 5511, 7658, 7907, 6983, 7913, 1884, 7982, 6146, 7669, 7833, 7915, 2364, 581, 7624, 7760, 7308, 7928, 7973, 7923, 7857, 7996, 96, 7761, 7327, 7929, 7419, 7958, 7844, 7762, 7435, 6170, 7320, 492, 7338, 506, 7963, 7763, 7979, 7748, 7574, 1409, 8042, 7948, 7965, 7585, 7926, 881, 8015, 7960, 8008, 7754, 7961, 7880, 7737, 7870, 7467, 8025, 7428, 6727, 1843, 7850, 7307, 7728, 7886, 7820, 7525, 8024, 7442, 7974, 8050, 7917, 7910, 7821, 7879, 7980, 7685, 7884, 7681, 8005, 8075, 7995, 6656, 8038, 8006, 6848, 7872, 7560, 7912, 1683, 1570, 8085, 6827, 7997, 8093, 8010, 1792, 7566, 8051, 7604, 7388, 6746, 1004, 8007, 7093, 7861, 8099, 8073, 8011, 6670, 8014, 8052, 8115, 8114, 8018, 8083, 1443, 8021, 3646, 8023, 1028, 8070, 7482, 8109, 8104, 8029, 7750, 7796, 8034, 8033, 8132, 7930, 7847, 892, 7735, 8090, 7736, 4426, 7211, 7603, 5468, 927, 7020, 8140, 8026, 8040, 8149, 8069, 8105, 7357, 291, 841, 8055, 6945, 7797, 2874, 8112, 6956, 8009, 7734, 7588, 7940, 2305, 2774, 7637, 8117, 8127, 92, 7553, 8111, 1087, 8084, 8091, 8077, 8078, 6601, 8080, 8157, 7616, 7967, 8178, 8175, 8086, 8087, 3624, 8089, 8136, 8064, 8043, 1890, 8094, 8095, 8171, 8097, 8193, 8110, 549, 325, 7350, 8158, 8187, 7787, 7415, 7975, 8072, 749, 8143, 649, 7540, 8126, 8184, 8071, 8139, 8216, 8048, 7924, 8053, 8180, 7878, 488, 8123, 7731, 7918, 8148, 7953, 7932, 7529, 1611, 8225, 1167, 7934, 8134, 8219, 8226, 7837, 7939, 289, 8182, 1212, 8074, 8241, 7865, 417, 8039, 8214, 7770, 7949, 412, 7124, 8049, 8215, 8172, 7819, 7946, 8185, 8107, 8243, 397, 1726, 7862, 7555, 7626, 7978, 7851, 8190, 1874, 7168, 8046, 8037, 8164, 7977, 386, 8258, 8224, 8100, 8271, 8128, 8248, 8041, 8244, 8020, 8259, 7976, 8213, 8058, 8222, 7992, 7518, 8173, 7838, 8151, 8195, 8288, 8162, 8209, 8211, 8298, 7522, 8297, 1389, 1747, 1646, 7714, 8207, 8208, 8300, 805, 8299, 7986, 8147, 8309, 7224, 7991, 7859, 8218, 8254, 8319, 8263, 8289, 8223, 7989, 8206, 7233, 8249, 8257, 688, 8129, 8330, 8232, 8233, 8234, 8235, 8032, 7782, 8238, 1410, 7642, 8270, 7691, 6011, 8337, 8118, 8256, 7721, 1211, 7951, 7938, 7937, 7684, 5925, 8253, 8228, 7317, 7873, 8315, 8266, 8220, 8061, 7959, 8262, 6588, 7766, 8334, 8217, 494, 8285, 8169, 7605, 8310, 391, 8054, 350, 8133, 8279, 8324, 8377, 8295, 8281, 8252, 8063, 7905, 6711, 8312, 8370, 895, 8322, 8347, 8188, 8292, 7610, 8294, 8380, 8320, 8355, 8336, 8230, 8314, 446, 8356, 8359, 8339, 8328, 8386, 8307, 8308, 1507, 1470, 8311, 8088, 1791, 7634, 8369, 8316, 8367, 8318, 6454, 7425, 8364, 8389, 8022, 8378, 8076, 8030, 190, 4691, 7805, 8067, 7683, 8394, 8376, 8163, 7860, 293, 7916, 8325, 8417, 8341, 5623, 7710, 7376, 8047, 5026, 8326, 8395, 8168, 8327, 8250, 7971, 8277, 8027, 8425, 8255, 806, 8291, 8387, 8396, 7863, 8446, 8433, 8321, 606, 8269, 14, 8155, 8428, 8212, 8331, 8393, 7970, 8183, 8274, 8125, 313, 8150, 8411, 8379, 8028, 4200, 8375, 7785, 8422, 5612, 8280, 8044, 7726, 6038, 8390, 8103, 8392, 8492, 8432, 8447, 1385, 8472, 8398, 8399, 8409, 8186, 8464, 8403, 8153, 8405, 1007, 8479, 8408, 8, 8410, 8454, 8458, 8486, 8407, 8096, 8416, 8467, 8418, 8478, 8057, 8391, 8484, 7725, 7966, 8362, 8227, 8421, 8372, 8430, 8511, 8296, 8342, 8435, 8518, 8351, 7209, 8210, 193, 8340, 8513, 8524, 7469, 8177, 8144, 8358, 8455, 8245, 8526, 8477, 8469, 8550, 8268, 8116, 8521, 8374, 8456, 8457, 8438, 8346, 1590, 8273, 8502, 8302, 8536, 8159, 8373, 8540, 8522, 7524, 6629, 8412, 8419, 8191, 8239, 85, 8557, 8491, 8381, 8124, 8504, 286, 8333, 8016, 6026, 8496, 6232, 8261, 8121, 8113, 8490, 8577, 8493, 8592, 8494, 8495, 8585, 8313, 8498, 8035, 8500, 3302, 8361, 1441, 6850, 8505, 8406, 7118, 8559, 8537, 7657, 8282, 1140, 8567, 8595, 8439, 8517, 1042, 8580, 8357, 5924, 8588, 794, 7856, 7022, 8345, 7653, 8542, 8515, 8371, 8460, 8598, 8461, 793, 8138, 8538, 27, 8196, 8449, 8571, 211, 8555, 8079, 8056, 8638, 1391, 8423, 8444, 8534, 7849, 8549, 8642, 8614, 8601, 8608, 8443, 8611, 8556, 810, 8607, 7231, 8563, 8448, 7279, 8283, 314, 8562, 8578, 8551, 189, 8366, 2675, 8487, 343, 1189, 7896, 684, 8605, 8672, 1209, 187, 8587, 8656, 8404, 8596, 8602, 8662, 8512, 8621, 8657, 8649, 8591, 8593, 8692, 8594, 8652, 8684, 8597, 8631, 8625, 8679, 111, 8685, 8609, 8527, 8284, 8397, 6810, 8583, 8480, 8610, 7887, 8690, 8702, 8617, 8615, 8666, 8687, 8618, 8700, 8648, 7344, 8568, 1003, 8531, 8530, 8548, 8516, 6745, 8677, 8360, 8483, 8632, 8622, 8661, 8414, 8350, 8730, 416, 8689, 614, 8440, 8459, 7543, 8541, 8693, 8646, 8576, 8717, 6881, 8573, 8489, 7855, 8643, 8753, 7139, 8705, 8546, 8664, 8606, 3804, 8713, 8589, 8641, 8338, 1200, 8189, 8507, 8303, 7858, 8710, 689, 8678, 8639, 7811, 8754, 8716, 8667, 491, 8718, 8686, 8709, 1013, 8729, 8725, 8445, 8785, 8668, 7310, 8747, 8712, 8787, 8745, 8792, 8694, 8695, 8789, 8697, 8698, 8699, 8772, 7408, 8761, 8734, 8704, 6123, 8731, 8514, 8036, 8221, 8784, 8623, 8790, 6744, 8066, 8727, 8780, 11, 8779, 8776, 8603, 8809, 8722, 8736, 8525, 8590, 8726, 8544, 8774, 8482, 8647, 8806, 8732, 91, 4171, 8783, 7791, 8272, 145, 8744, 8825, 8777, 8804, 8826, 8624, 8786, 8829, 8604, 8830, 8720, 8437, 8570, 8840, 8795, 8798, 4725, 8770, 8797, 8759, 7854, 8756, 8760, 1142, 8634, 8426, 8659, 8574, 8769, 8823, 8845, 8836, 8856, 8581, 8793, 8807, 3274, 4899, 587, 8767, 8535, 8850, 8475, 8682, 8586, 8170, 8519, 8884, 8247, 3482, 8867, 8471, 8791, 8757, 8820, 8474, 8853, 8630, 8533, 8874, 8879, 1109, 909, 8862, 8893, 8842, 1043, 8523, 8818, 8750, 8815, 8810, 8724, 8599, 8543, 8895, 8909, 8885, 6103, 8907, 8916, 8137, 8714, 8822, 8721, 8451, 8914, 8167, 8921, 8892, 8796, 8827, 8896, 8824, 3002, 8837, 7619, 8365, 8711, 792, 8181, 8886, 8841, 8910, 8843, 8554, 8660, 8812, 8651, 8848, 8849, 8835, 8946, 6125, 8925, 414, 815, 8942, 8654, 8146, 8958, 8904, 8859, 1023, 8775, 8644, 8913, 8752, 4800, 8931, 8613, 8733, 485, 891, 8873, 8528, 8814, 586, 8575, 8878, 8708, 8979, 8915, 8937, 7942, 8940, 8919, 8857, 324, 8463, 8922, 8890, 8891, 8984, 823, 7630, 8953, 8869, 8450, 666, 8834, 8991, 18, 8965, 8819, 8986, 8947, 8420, 8569, 8742, 8975, 8928, 8985, 910, 623, 8832, 8918, 8852, 8620, 216, 8552, 8993, 8944, 8989, 7723, 621, 8905, 8997, 8966, 6780, 8978, 8650, 8936, 8998, 8871, 9025, 8950, 8706, 8875, 1608, 788, 8141, 8564, 8956, 387, 9011, 7954, 8957, 284, 8948, 8949, 8808, 280, 8894, 8995, 9007, 8851, 8858, 9052, 9046, 8749, 8773, 8880, 8962, 8973, 8655, 8865, 4199, 7271, 8382, 8707, 8941, 8349, 9100, 9063, 8964, 9009, 8828, 8290, 9061, 8065, 9056, 9026, 8335, 8688, 9070, 9034, 710, 8846, 8816, 9083, 8755, 9027, 9077, 9020, 9019, 9053, 8988, 9081, 9032, 9087, 9006, 2949, 209, 9062, 9004, 9005, 385, 8429, 9031, 9015, 8912, 9044, 8868, 7613, 9064, 9095, 8932, 8766, 8860, 8917, 8929, 9104, 8923, 9022, 8251, 9109, 9113, 9074, 8122, 9103, 9054, 7321, 9085, 9014, 9133, 8866, 9029, 8888, 9110, 9135, 9130, 9008, 3803, 9105, 9094, 8012, 9143, 9033, 8352, 44, 9036, 8876, 9092, 82, 8741, 9076, 9080, 9118, 9115, 8959, 8961, 217, 9132, 8992, 9141, 441, 9127, 8681, 9136, 9010, 9058, 884, 8737, 9057, 8746, 8908, 8192, 191, 9078, 9165, 9055, 9172, 9158, 9147, 9111, 9099, 8911, 9185, 9167, 9098, 9162, 9129, 9190, 9093, 8951, 9182, 8154, 9125, 9189, 9187, 9106, 9075, 9171, 8293, 9108, 9146, 315, 9168, 6673, 9145, 9090, 9184, 9041, 9089, 9042, 8317, 9140, 9116, 8442, 9045, 8728, 9211, 9073, 9071, 9194, 108, 9170, 9166, 9163, 9060, 8934, 9219, 8926, 9134, 9059, 9191, 9084, 9175, 8943, 8353, 9144, 9088, 9236, 5911, 9149, 9186, 9205, 8473, 9121, 9244, 1201, 478, 9229, 9091, 8963, 185, 292, 9217, 5427, 9216, 9225, 9157, 9192, 9250, 9253, 8847, 9117, 9247, 7935, 9242, 8833, 9155, 9267, 9173, 8453, 8645, 589, 9241, 9207, 8385, 9238, 9220, 9214, 9230, 9268, 9269, 9198, 9272, 7882, 8821, 9264, 9261, 9286, 9193, 9120, 9028, 747, 9273, 9245, 9199, 9296, 8738, 613, 9131, 9050, 9246, 9285, 8855, 9178, 9038, 9123, 9259, 8260, 9239, 9303, 9215, 9016, 9249, 9314, 9281, 8969, 8481, 8627, 9223, 9224, 9114, 516, 9227, 287, 9235, 9012, 9274, 9297, 9183, 9209, 9262, 6177, 9204, 9128, 8887, 9333, 8765, 8813, 8665, 6604, 9334, 9226, 9188, 9048, 9317, 9346, 9291, 88, 9320, 112, 9354, 9096, 9310, 9313, 9305, 9342, 9306, 9335, 9228, 9298, 9330, 9278, 9169, 9293, 9212, 9282, 9355, 9287, 9222, 8653, 393, 9322, 9037, 9366, 9275, 9399, 9376, 2680, 9210, 8838, 8996, 9347, 7570, 9311, 9137, 9348, 9349, 9353, 9315, 7738, 9340, 9390, 9332, 89, 9299, 9152, 9395, 9316, 3503, 9260, 9359, 9208, 9378, 9240, 9329, 6506, 9388, 9381, 9308, 8987, 9341, 9391, 9411, 9221, 9023, 9312, 9385, 9351, 9420, 9364, 8924, 9280, 8863, 212, 8872, 9179, 9151, 8629, 9372, 8817, 9148, 271, 178, 8626, 9065, 81, 8476, 9324, 6007, 9382, 9423, 9234, 9379, 9294, 180, 9448, 9442, 9243, 9377, 9407, 9279, 9254, 9154, 9422, 8960, 1305, 9454, 9363, 9386, 9455, 9302, 1689, 9396, 9331, 9394, 9203, 9449, 380, 9373, 9434, 8584, 9445, 9409, 9461, 9318, 87, 9414, 9481, 9472, 9365, 9295, 8240, 285, 9328, 9484, 9450, 9467, 9321, 4699, 9035, 9356, 9277, 9490, 9433, 9440, 9462, 9498, 9397, 9142, 9368, 9405, 9069, 9412, 9362, 364, 9491, 9406, 9507, 9469, 9510, 9451, 9424, 479, 9415, 8945, 9066, 6104, 290, 9398, 9126, 9514, 9482, 9266, 9408, 9495, 348, 9479, 9531, 9352, 4499, 9289, 9530, 9374, 9421, 9536, 9515, 9494, 9404, 124, 9327, 9446, 9542, 9529, 9497, 9548, 9468, 9456, 9518, 9496, 9452, 9447, 9345, 9502, 9475, 9516, 9506, 9540, 9550, 463, 9517, 9465, 9549, 9500, 9511, 9309, 9270, 9535, 9522, 9473, 9470, 9557, 9112, 8663, 9361, 7203, 8764, 7481, 9013, 9477, 9509, 188, 9478, 9367, 9562, 9546, 9248, 9538, 9513, 9504, 9590, 9594, 9553, 9561, 9584, 65, 9599, 9532, 9575, 9582, 224, 9505, 8982, 9583, 8166, 36, 9459, 9595, 9591, 9512, 9360, 8805, 9338, 9592, 123, 9177, 9525, 9587, 8967, 9603, 9416, 9605, 7867, 9607, 9419, 9410, 9387, 9537, 8120, 9435, 9630, 9615, 8119, 9453, 9621, 9528, 8101, 9589, 9641, 9626, 9628, 9524, 9588, 9567, 9566, 9624, 15, 9432, 9638, 9576, 9580, 9625, 9611, 9555, 9627, 9431, 9635, 9633, 9597, 9647, 9551, 9568, 9651, 9629, 9570, 8635, 9466, 9508, 9646, 13, 9573, 9619, 8861, 9527, 9437, 86, 9654, 9426, 9664, 9673, 9656, 9544, 9684, 9610, 9574, 9639, 9471, 9564, 9606, 9685, 9689, 9604, 9695, 9662, 9598, 9696, 7701, 9688, 9658, 142, 9697, 9655, 34, 323, 9694, 9644, 4403, 9631, 9671, 9690, 9563, 9707, 9659, 9705, 9691, 9648, 9713, 9712, 9683, 9700, 9720, 9480, 6602, 9556, 9637, 9636, 9715, 9649, 9679, 9519, 9652, 4700, 9665, 76, 9653, 9569, 9704, 9682, 9730, 9119, 9581, 4602, 9645, 8003, 9672, 9620, 9608, 9709, 9687, 9693, 9520, 5104, 9613, 9622, 9642, 9740, 9017, 9759, 9718, 117, 9721, 1202, 9634, 9438, 9746, 9751, 9761, 9770, 8977, 9521, 9539, 9579, 9763, 9677, 9754, 17, 9731, 9736, 9734, 9708, 9768, 9766, 8102, 9749, 9771, 9741, 9738, 9617, 9758, 9666, 9781, 3899, 9777, 9788, 9523, 9787, 9748, 21, 5603, 9779, 9797, 9717, 2404, 9769, 9547, 5504, 9729, 9711, 9545, 9785, 9733, 9663, 9803, 9764, 9765, 9805, 9810, 9804, 9755, 9778, 9794, 9820, 9786, 9750, 9762, 9809, 9821, 9826, 9716, 9565, 9792, 9602, 9079, 9811, 8004, 9823, 9831, 9819, 9676, 9814, 5201, 9838, 9752, 9817, 9847, 9808, 9796, 9818, 8900, 9849, 9853, 1895, 9800, 16, 9774, 9842, 9756, 9854, 9793, 9861, 9815, 9845, 9827, 9784, 9832, 9830, 9807, 9856, 12, 9834, 9868, 9837, 9727, 6900, 9839, 9864, 9841, 9873, 9866, 9836, 9871, 9813, 9881, 9846, 9554, 9816, 9887, 9880, 9886, 9862, 9828, 9775, 9850, 9869, 9848, 9890, 9897, 9724, 8499, 7502, 52, 9894, 9900, 9905, 9883, 9908, 9885, 9601, 9829, 9906, 9825, 9913, 9904, 8933, 9915, 9888, 9907, 9918, 9921, 9922, 9909, 9923, 4301, 9882, 9927, 9910, 9925, 9930, 9931, 9932, 9858, 9933, 9896, 9919, 604, 9935, 9843, 9702, 9940, 9934, 9912, 9936, 9833, 9939, 9859, 9947, 9949, 9773, 9950, 9948, 9929, 9914, 9953, 9952, 9957, 9958, 9943, 9937, 9924, 9959, 9963, 9964, 9965, 9966, 9961, 9967, 9962, 9969, 9971, 9972, 9822, 9973, 9916, 9976, 9975, 9970, 9978, 9980, 9968, 9981, 9979, 9945, 9920, 9942, 9983, 9977, 9988, 9985, 9990, 9954, 9987, 9989, 9992, 9986, 9996, 9998];
+//        let interleaver=interleaver::generate_unique_random_vector(10000);
+        ///TURBO CODE OPERATIONS
+        let mut encoder = TurboEncoder::new(interleaver.clone());
+        let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 30);
+
+        let mut channel = BSC::new(p);
+        let mut varianza =channel.sigma;
+        ///test ora con bit scorrelati in input
+        let input_vector: Vec<usize> = interleaver::generate_binary_vector(10000);
+        let encoded_vector = encoder.execute(input_vector.clone());
+
+        let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+        let bsc_channel_vector = channel.execute(&channel_vector); //canale con errore
+
+        // println!("channel vector: {:?}", channel_vector);
+        // println!("bsc errors vector: {:?}", bsc_channel_vector);
+
+        let decoded_vector: Vec<i32> = decoder.execute(bsc_channel_vector.clone(), &varianza)
+            .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+            .collect();
+
+
+        // println!("\n--test_turbo_decoder--");
+        // println!("input_vector = {:?}", input_vector);
+        // println!("encoded_vector = {:?}", encoded_vector);
+        // println!("decoded_vector = {:?}", decoded_vector);
+
+        let decoded_vector_trimmed: Vec<f64> = decoded_vector[..input_vector.len()].to_vec().iter().map(|&b| b as f64).collect();
+        let converted_input: Vec<f64> = input_vector.iter().map(|&b| b as f64).collect();
+
+        (count_differences(&channel_vector, &bsc_channel_vector), count_differences(&decoded_vector_trimmed, &converted_input)) //differenza errore prima e dopo
+
+
+    }
+
+    fn count_differences<T>(vector1: &[T], vector2: &[T]) -> i32
+    where
+        T: PartialEq + Float,
+    {
+        vector1.iter()
+            .zip(vector2)
+            .filter(|(a, b)| a != b)
+            .count() as i32
+    }
+
+    // #[test]
+    // fn test_interleaver(){
+    //     let trasposition=vec![8701,5201,4800,2901,3201,1404,8402,3303,9003,503,3804,1005,9302,2305,6104,5104,3002,9702,4602,4301,604,5504,1503,9601,8900,6005,1303,2005,1605,1103,704,7104,3505,9801,2404,4403,7602,2799,5603,2502,3703,6804,7502,8499,8799,7703,204,903,9200,2201,8198,6501,9901,5901,7299,5699,6997,5397,3399,6200,2698,3599,3999,2597,7800,9499,99,7397,5795,2096,4098,6698,5295,4497,1895,6900,299,3899,1699,400,4700,9399,8004,7203,6601,9100,7903,4199,6399,8102,1,8601,4899,1202,8301,1800,800,6301,4998,3101,8701,5201,4800,2901,3201,1404,8401,3303,9003,503,3804,1005,9302,2305,6104,5104,3002,9701,4602,4301,604,5504,1503,9602,8900,6006,1304,2005,1605,1103,704,7104,3504,9801,2404,4403,7602,2800,5603,2501,3704,6803,7503,8499,8800,7702,203,903,9200,2201,8197,6501,5902,7299,5700,6999,5399,3401,6201,2699,3601,3999,2598,7800,9501,100,7398,5797,2097,4099,6699,5296,4498,1897,6901,299,3900,1699,401,4701,9400,4599,8003,7204,6602,9100,7903,4199,6399,8102,2,8601,4898,1202,8301,1800,800,6301,4998,3101,8701,5201,4800,2901,3201,1404,8401,3303,3606,9002,502,3803,1004,9301,2304,6103,5103,3002,9700,4602,4300,603,5503,1502,9600,8899,6005,1304,2003,1603,1102,702,7103,3503,2403,4404,7601,2800,5603,2500,3703,6802,7503,8499,8800,7701,203,903,9200,2201,8197,6501,5902,7299,5701,6999,5399,3400,6200,2699,3602,3999,2598,7800,9501,99,7399,5797,2097,4099,6698,5297,4497,1897,6902,299,3900,1699,401,4700,9401,4499,8003,7204,6602,9100,7902,4199,6399,8101,2,8601,4898,1202,8301,1800,800,6301,4998,3101,8701,5201,4800,2901,3201,1404,8402,3302,3606,9001,502,3803,1004,9301,2303,6103,5103,3002,4602,4302,603,5504,1502,9601,8900,6006,1305,2005,1604,1104,703,7103,3505,2403,4404,7601,2801,5604,2501,3704,6804,7503,2108,8499,8800,7701,203,902,9200,2202,8197,6501,5902,7300,5701,7000,5399,3401,6200,2699,3601,4000,2598,7799,9501,98,7400,5797,2097,4100,6698,5297,4497,1897,6902,299,3899,1700,401,4699,9401,4399,8002,7204,6602,9100,7902,4199,6400,8101,2,8601,4898,1202,8301,1800,800,6301,4999,3101,8701,5201,4801,2901,3200,1403,8402,3302,304,9001,502,3803,1005,9301,2303,6103,5103,3002,4602,4302,603,5504,1502,8901,6007,1306,2006,1606,1106,704,7104,3505,2403,4405,7602,2803,5605,2503,3704,6805,7503,9107,8501,8801,7701,204,903,9202,2202,8198,6501,5903,7302,5702,7000,5400,3403,6201,2700,3601,4002,2599,7800,9503,99,7401,5799,2099,4100,6700,5298,4497,1898,6904,300,3900,1701,402,4700,9402,4300,8003,7205,6603,9101,7902,4200,6401,8102,7702,2,8601,4899,1202,8301,1800,800,6301,4999,3101,8701,5201,4801,2901,3200,1403,8402,3302,304,9001,501,3803,1005,9300,2302,6103,5103,3002,4603,4303,603,5504,1502,8901,6007,1305,2006,1606,1107,704,7104,3505,2404,4404,7601,2803,5605,2503,3704,6805,7503,2109,8501,8801,7700,205,904,9202,2201,8198,6500,5902,7301,5702,7000,5401,3402,6201,2700,3600,4002,2598,7799,100,7401,5800,2100,4101,6701,5299,4497,1899,3998,6904,300,3901,1701,402,4700,9403,7904,8003,7206,6604,9102,7902,4200,6401,8101,8203,2,8601,4899,1202,8301,1800,800,6301,5000,3101,8701,5201,4801,2901,3200,1403,8402,3302,304,9001,501,3803,1005,9300,2303,6103,5103,3001,4603,4302,603,5505,1502,8901,6007,1305,2005,1605,1107,704,7104,3504,2404,4403,7600,2803,5605,2503,3705,6804,7502,7405,8501,8801,7699,205,905,9202,2201,8199,6501,5902,7300,5702,7001,5401,3401,6201,2700,3600,4002,2598,7799,100,7401,5799,8898,2099,4099,6701,5299,4496,1899,6402,6903,299,3900,1700,401,4700,7904,8002,7206,6604,9102,7902,4200,6401,8101,8203,2,8601,4900,1201,8301,1800,800,6301,5000,3101,8701,5201,4801,2900,3200,8306,1402,8401,3301,302,9000,500,3802,1004,2302,6103,5103,3001,4603,4302,602,5505,1501,8902,6007,1305,2004,1606,1106,705,7103,3504,2404,4404,7600,2804,5605,2504,3706,6804,7501,2108,8501,8801,7699,204,906,9202,2202,8200,6501,5902,7300,5701,7002,5401,3400,6200,2701,3601,4001,2598,7799,100,7400,5799,6798,2099,4099,6701,5299,4496,1899,6403,6903,299,3900,1700,401,4700,7903,8002,7205,6605,9102,7901,4199,6402,8101,8203,2,8601,4900,1201,8301,1800,800,6301,5000,3101,8701,5201,4801,2900,3200,8306,1402,8401,3301,302,8999,500,3802,1003,2302,6103,5103,3002,4603,4303,603,5505,1502,8903,6007,1305,2003,1606,1106,706,7102,3505,2405,4404,7601,2803,5605,2504,3706,6805,7500,8108,8501,8802,7699,204,905,2203,8201,6502,5903,7300,5702,7002,5402,3401,6201,2703,3603,4002,2600,7800,101,7401,5800,6800,2100,4099,6702,5300,4498,1900,3296,1397,6904,299,3899,1701,400,4701,7903,8002,7205,6605,9102,7901,4198,6402,8101,8203,2,8601,4900,1201,8301,1800,800,6301,5000,3101,8701,5201,4801,2900,3200,2909,1402,8400,3301,8801,8999,501,3802,1003,2303,6103,5103,3002,4603,4303,603,5505,1502,8902,6006,1304,2004,1606,1107,707,7102,3505,2405,4404,7600,2803,5605,2504,3707,6805,7501,6410,8501,8802,7699,204,904,2203,8201,6501,5903,7300,5702,7001,5402,3402,6202,2702,3603,4001,2601,7800,101,7400,5800,7297,2100,4098,6702,5301,4498,6493,1899,4494,1396,6903,297,3898,1700,399,4700,7902,8001,7203,6604,7901,4198,6403,8101,8203,2,8601,4900,1201,8301,1800,800,6301,5000,3101,8701,5201,4801,2900,3200,2909,1402,8400,3301,8800,502,1307,3803,1003,2303,6103,5104,3002,4603,4303,603,5505,1502,8902,6005,1305,2004,1605,1107,707,7101,3505,2405,4404,7600,2804,5605,2505,3706,6804,7500,611,8501,8802,7699,203,903,2204,8202,6501,5902,7299,5702,7001,5401,3403,6202,2703,3603,4000,2601,7801,101,7400,5800,7296,2099,4098,6703,5301,4499,1194,1899,4495,3496,6902,297,3897,1700,400,4700,7802,8001,7203,6604,7901,4198,6403,8101,8203,2,8601,4900,1201,8301,1800,800,6301,5000,3101,8701,5201,4801,2900,3200,106,1402,8400,3301,8800,502,1307,3802,1003,2303,6103,5104,3002,4603,4303,603,5505,1501,6006,1306,2005,1605,1107,707,7101,3507,2407,4406,7601,2804,5606,2505,3707,6804,7501,611,8503,8803,7701,204,905,2205,8203,6503,5902,7300,5703,7001,5402,4600,3403,6203,2704,3602,4000,2602,7801,100,7400,5799,6800,2099,4098,6703,5300,4499,1194,1899,5895,1397,6902,298,3896,1700,401,4700,7702,8000,7202,6605,7901,4199,6403,8101,8203,2,8601,4900,1201,8301,1800,800,6301,5000,3101,8701,5201,4801,2900,3200,106,1401,8400,3301,8600,502,8303,3802,1002,2303,6103,5104,3002,4603,4303,602,5505,1500,6006,1306,2006,1604,1108,707,7101,3506,2406,4406,7601,2804,5606,2505,3706,6804,7501,6411,8503,7703,206,905,2206,8204,6505,5904,7301,5703,7002,5403,5901,3405,6203,2704,3603,4001,2604,7802,101,7401,5800,6801,2100,4099,6703,5301,4500,4894,1899,5897,1398,6902,300,3897,1701,5697,401,4701,7602,8000,7202,6605,7901,4199,6403,8101,8203,1,8601,4900,1201,8301,1800,800,6301,5001,3101,5202,4802,2901,3201,108,1402,8401,3302,8601,502,8304,3803,1003,1705,2302,6103,5104,3002,4603,4303,602,5505,1499,6006,1305,2006,1605,1108,708,7102,3506,2406,4406,7602,2803,5605,2506,3705,6803,7501,6412,8503,7703,207,904,2207,8204,6504,5904,7301,5702,7001,5403,4302,3404,6203,2703,3602,4001,2603,7802,102,7401,5801,6800,2101,4099,6703,5301,4500,4895,1899,4496,2795,6902,301,3897,1701,2698,401,4701,4600,8000,7202,6604,7901,4200,6404,8101,8203,1,8601,4901,1201,8301,1799,800,6301,5001,3101,5202,4802,2901,3201,2605,1402,8401,3302,8401,502,8304,3803,1003,1705,2302,6103,5104,3002,4603,4303,602,5504,1500,6005,1304,2006,1605,1108,708,7101,3505,2407,4406,7602,2803,5604,2505,3706,6802,7502,610,8503,7703,208,904,2206,8205,6503,5904,7301,5703,7001,5403,5902,3404,6204,2702,3601,4001,2603,7803,103,7402,5801,5200,2102,4100,6702,5302,4501,1196,1899,5898,1398,6901,300,3898,1700,2698,400,4701,4600,7998,7999,7200,6603,7900,4199,6403,8100,8202,8201,4901,1201,8301,1799,800,6301,5001,3101,7201,5201,4801,2900,3200,2604,1402,8400,3302,302,501,1305,3802,1002,3805,2302,6102,5103,3001,4603,4302,601,5503,1499,6004,1302,2005,1604,1106,706,7100,3503,2405,4405,7601,2803,5604,2504,3705,6800,7501,608,7703,207,904,2207,8205,6503,5903,7302,5703,7001,5402,4302,3403,6205,2702,3601,4002,2602,7803,104,7402,5802,5200,2102,4100,6702,5302,4501,7994,1900,5898,1398,6901,299,3898,1700,2697,400,4702,4500,6603,7999,7200,6602,7900,4199,6403,8101,8202,8201,4901,1201,8301,1799,800,6301,5001,3101,7201,5201,4801,2900,3201,2604,1402,3302,8106,502,1307,3803,1002,3806,2303,6103,5104,3002,4604,4303,601,5504,1500,6005,1304,2005,1606,1106,708,7101,3505,2406,4407,7602,2805,5605,2504,3706,6802,7502,6108,607,7703,206,905,2208,8205,6502,5903,7303,5704,7001,5402,4303,3402,6204,2703,3601,4002,2602,7803,103,7402,5802,5200,2103,4100,6701,5301,4501,5894,1900,4497,1398,6901,299,3899,1700,2697,401,4702,6504,6603,8000,7200,6602,7900,4199,6403,8101,7802,7801,4901,1201,8301,1799,800,6301,5001,3101,7201,5201,4801,2900,3200,7702,1402,3302,303,501,1306,3803,1002,3806,2303,6103,5104,3002,4604,4303,602,5504,1501,6005,1304,2005,1606,1105,708,7101,3505,2405,4407,7602,2805,5605,2504,5108,3704,6800,7501,6106,1909,7702,204,903,2206,8204,6501,5903,7302,5702,7000,5402,4302,3401,6202,2703,3600,4001,2602,7802,101,7401,5801,5198,2103,4099,6700,5300,4501,1195,1899,4497,1396,6900,299,3898,1699,2697,400,4700,6503,6601,7999,7199,6600,7900,4198,6401,8100,7801,8098,4900,1200,1799,800,6301,5001,3101,7201,5201,4801,2900,3200,7702,1403,3302,1109,501,1306,3803,1002,1706,2303,6102,5104,3003,4604,4304,602,5504,1501,213,6003,1303,2005,1605,1105,707,7101,3504,2404,4406,7601,2805,5603,2504,5106,3704,6799,7500,6104,7908,7701,204,901,2205,6500,5904,7302,5702,7001,5402,4302,3401,6202,2703,3600,4001,2603,7803,100,7402,5802,5198,2102,4100,6700,5301,4501,1195,1900,4497,1396,6900,299,3898,1699,3588,400,4700,6403,5804,7999,7199,6600,7900,4198,6401,8100,7698,6398,4900,1200,1799,800,6301,5001,3101,7201,5201,4801,2901,3200,7702,1403,3302,1108,501,7404,1306,3802,1002,1704,2302,6101,5103,3001,4603,4303,601,5503,1500,6606,6001,1303,2003,1604,1104,705,7100,3503,2404,4405,7600,2803,5602,2504,5104,3704,6798,7499,7201,6205,7701,202,900,2203,6499,5902,7302,5702,7001,5402,2301,3400,6200,2702,3600,4001,2602,7802,100,7401,5802,5198,2101,4099,6699,5300,4499,1193,1900,4495,5395,6900,298,3897,1698,3588,399,4699,4598,5804,7998,7197,6599,7899,4197,6399,7699,4194,4900,1199,1799,800,6301,5001,3101,7201,5201,4801,2900,3201,2604,1403,3302,302,501,7404,5,3802,1001,1704,2302,6100,5103,3001,4603,4303,600,5503,1500,4207,6001,1303,2003,1603,1104,704,7100,3504,2404,4405,7601,2803,5603,2504,5105,3704,6798,7499,6102,1908,7701,201,901,2203,6499,5901,7302,5703,7001,5401,2302,3400,6200,2701,3600,4001,2602,7802,99,7401,5802,4598,2100,4099,6699,5301,4499,1193,1899,4495,896,6900,298,3898,1698,4988,399,4700,297,5804,6001,7197,6598,7899,4198,6399,7699,6397,4900,1199,1799,800,6301,5001,3101,7201,5201,4801,2900,3201,1205,2603,1402,3301,301,499,5207,4,3801,1000,1704,2301,6099,5102,3001,4602,4302,599,5502,1498,3010,5999,1302,2002,1602,1104,702,7099,3503,2403,4404,7601,2801,5602,2504,5803,3703,6798,7499,6100,2106,7700,200,900,2203,6498,5900,7301,5701,7000,5400,2302,3400,6198,2700,3599,4000,2600,7802,98,7401,5800,1500,2099,4099,6699,5300,4498,1192,1898,4494,6399,6899,297,3897,1697,5697,399,4699,4598,5802,5201,7196,6597,4198,6399,5999,6397,4900,1199,1799,800,6301,5001,3101,7201,5201,4801,2900,3201,1205,7701,1401,3301,301,499,5207,3,3801,1001,3804,2301,6099,2402,5101,3000,4601,4301,597,5501,1497,206,5997,1301,2001,1602,1103,702,7098,3502,2403,4403,7600,2799,5600,2502,5802,3702,6797,7499,6098,5903,7699,199,899,2203,6497,5898,7300,5699,7000,5400,2301,3399,6197,2698,3598,4000,2599,98,7402,5800,3499,2099,4099,6699,5300,4499,1193,1898,3695,3994,6898,298,3897,1697,5696,399,4699,297,5802,5201,7196,6597,4197,6398,3795,6396,4900,1199,1799,800,6301,5001,3101,7201,5201,4801,2901,3201,1205,2603,1401,3301,101,499,4209,706,3801,1001,3805,2301,6100,2402,5101,3000,4601,4301,598,5500,1498,6905,5997,1300,2002,1601,1103,702,7098,3502,2402,4403,7600,2800,5599,2502,5801,3702,6797,7499,6804,7400,201,901,2204,6499,5899,7302,5700,7001,5402,2303,3400,6198,2698,3600,4001,2599,99,7403,5800,4597,2101,4099,6700,5301,4500,3194,1898,7190,1397,6899,299,3899,1698,5697,400,4700,298,6599,5202,7197,6598,4198,6399,7497,7496,2599,4900,1199,1799,799,6301,5001,3101,7201,5201,4801,2901,3201,1204,2603,1401,3301,3100,500,7402,1304,3801,1001,3805,2301,6099,7500,5101,3000,4601,4301,598,5499,1497,2113,5998,1300,2002,1601,1103,702,7098,3502,2402,4403,2801,5600,2502,409,3703,6798,7500,6806,5799,201,902,2206,6501,5899,7303,5700,7002,5402,2303,3401,6199,2699,3601,4001,2599,101,7404,5801,5201,2101,4100,7197,6700,5302,4499,5797,1898,1097,690,6899,299,3899,1698,5696,400,4701,4599,6599,4601,7198,6598,4198,6399,3797,3796,7203,4901,1199,1799,799,6301,5001,3101,7201,5201,4801,2901,3201,1204,703,1401,3301,3100,500,7402,2807,3801,1001,3805,2302,6099,2402,5101,3000,4601,4301,598,5499,1497,3713,5997,1301,2002,1601,1102,703,7099,3503,2401,4402,2801,5599,2501,6409,3703,6798,6100,6496,201,903,2206,5700,6501,5899,7303,5700,7002,5401,5104,3402,6199,2699,3601,4001,2599,101,7405,5800,7299,2101,4100,3396,6701,5302,4499,4397,1899,3697,1397,6898,299,3898,1697,5696,400,4700,4600,6598,4602,7198,6597,4199,6399,3797,3796,7203,4901,1199,1799,799,6301,5001,3101,7201,5201,4801,2901,3201,1204,703,1401,3301,3100,500,4209,1305,3801,1000,3805,2301,6099,2402,5101,3000,4601,4301,599,5498,1497,6298,1710,5996,1299,2002,1600,1101,702,7099,3502,2399,4400,2800,5597,2501,5800,3702,6797,6099,6495,200,903,2205,5698,6500,5898,7303,5698,7002,5400,1602,3401,6199,2698,3601,4000,2598,100,5800,6800,2100,4100,3396,6701,5301,4500,3194,1899,4496,690,6898,299,3898,1697,490,400,4701,4599,6199,4602,7198,6597,4199,6399,3796,3795,7203,4901,1199,1799,799,6301,5001,3101,7201,5201,4801,2901,3201,1204,703,1401,3301,3100,501,5206,1305,3801,1000,1704,2301,6099,2104,5100,3000,4601,4301,599,5498,1497,6298,508,5996,1299,2001,1601,1102,702,7098,3502,2400,4401,2801,5597,2501,5799,3702,6797,5107,6505,201,902,2204,4003,6501,5898,5699,7003,5400,2503,3402,6200,2699,3602,4001,2599,101,5801,7201,2101,4101,4999,6701,5302,4501,1197,1900,5895,692,6900,300,3899,1699,2695,400,4702,4601,3198,4604,7199,6598,4200,6400,5999,1,7204,4902,5602,1199,1799,799,6301,5001,3101,3702,5201,4801,2901,3201,6303,1903,1401,3301,1199,502,1406,707,3801,1001,3805,2301,6099,2103,5099,3000,4601,4301,599,5498,1498,6998,1404,5996,1299,2001,1601,1101,702,7098,3502,2400,4401,2801,5598,2501,6211,3702,6798,4508,6405,201,903,2203,5698,6501,5898,5699,7003,5400,5103,3402,6200,2700,3601,4001,2599,101,5801,1998,2100,4100,4999,6702,5301,4502,4896,1899,4498,1397,6900,299,3900,1699,498,1096,399,4701,4500,6596,4603,6598,4200,6400,5999,1,103,4902,300,1199,1799,799,6301,5001,3101,3702,5201,4801,2901,3201,6303,7001,1401,3301,1199,502,1904,3,3801,1001,1704,2301,6099,2103,5099,3000,4601,4301,599,5499,1498,6298,6404,5997,1299,2000,1601,1101,701,3503,2401,4402,2802,5598,2501,5800,3703,6800,5908,5799,202,905,2205,4003,6502,5900,5700,7005,5400,2302,3403,6201,2701,3602,4001,2601,102,5802,2097,2100,4101,3399,6704,5302,4503,3694,1900,5897,1398,6901,300,3901,1700,2697,2299,400,4702,4601,6599,5202,6599,4202,6401,3499,5999,1,3802,4902,300,1199,1799,799,6301,5001,3101,5701,5201,4801,2901,3201,6302,1903,1401,3301,1199,502,1903,2,3801,1001,1704,2301,6099,2104,5098,3000,4601,4301,598,5498,1498,3405,2809,3011,5996,1299,1998,1601,1099,700,3502,2400,4400,2801,5597,2501,5799,3702,6799,1709,6495,202,903,2204,4001,6501,5900,5699,5400,4302,3402,6202,2701,3602,4001,2601,101,5803,6804,2100,4102,3398,6704,5301,4503,4896,1899,5897,3198,6902,300,3901,1699,994,3597,400,4703,4501,6600,5202,6600,4202,6401,5203,5999,1,3802,4902,300,1199,1799,799,6301,5001,3101,5701,5201,4801,2901,3201,703,1903,1401,3301,3100,501,1903,2802,3801,1001,3805,2301,6099,2403,5098,3001,4601,4301,2402,597,5497,1498,1809,1802,3010,5995,1298,1998,1599,1098,700,3501,2400,4399,2800,5596,2501,5406,3701,6798,607,6495,201,902,2203,4001,6501,5899,5699,5399,1202,3401,6201,2700,3601,4001,2600,100,5802,5200,2099,4101,3397,6703,5300,4502,4895,1897,4498,3996,300,3901,1699,5698,3598,400,4703,4401,5201,5201,6600,4203,6401,5202,5599,5598,2601,4902,300,1199,1799,799,6301,5001,3101,5701,5201,4801,2901,3201,703,3,1401,3301,3100,501,104,3,3801,1001,4802,2301,6099,2403,5098,3001,4600,4301,2402,598,5497,1498,1405,2809,603,5995,1298,1998,1599,1099,699,3501,2400,4399,2801,5596,2501,708,3700,5298,6606,5497,201,901,2202,3403,6501,5899,5700,5399,5899,3401,6201,2701,3601,4001,2600,100,5802,5200,2099,4102,4398,6704,5300,4503,3692,1897,4499,192,300,3902,1698,6286,1398,400,4702,4602,5002,5998,6600,4203,6402,5202,5599,5598,2601,4902,300,1199,1798,799,6301,5001,3101,5701,5200,4801,2901,3201,4,503,1401,3301,3100,501,5905,5804,3801,1001,4801,2301,6099,2403,5099,3001,4599,4301,6403,597,5497,1499,701,7,5702,5995,1299,1998,1598,1099,699,3501,2400,4399,2801,5597,2501,6003,3699,5298,205,1407,202,901,2203,4801,6501,5900,5700,5399,4598,3401,6201,2701,3600,4002,2601,101,5802,6601,2099,4102,4895,5301,4504,1197,1898,3698,898,301,3903,1698,5699,88,401,4703,4602,3299,5999,6601,4204,6403,899,4803,5599,5598,2601,4902,300,1199,1798,799,6301,5001,3101,5701,5200,4801,2901,3201,6302,503,1402,3301,2900,501,104,304,3801,1001,1002,2301,6099,2403,5098,3001,4599,4301,2402,597,5497,1498,5397,1309,2509,5995,1298,1998,1597,1099,698,3500,2400,4398,2801,5597,2501,4405,3700,5298,6100,6496,201,902,2203,4801,6501,5900,5700,5400,5900,3401,6202,2701,3600,4001,2601,102,5803,1398,2100,4102,4894,5301,4503,3197,1899,3699,6402,301,3904,1698,5698,5797,401,4702,4502,595,5999,5701,4204,6403,3100,5304,5599,5598,2601,4901,300,1199,1798,799,6301,5001,3101,5701,5201,4801,2901,3201,6302,5602,1401,3301,302,501,1908,1807,3801,1001,2504,2301,6099,2403,5098,3001,4598,4300,2402,597,5497,1498,2,1309,2109,5995,1299,1999,1598,1100,698,3499,2400,4397,2801,5597,2501,5097,3700,5406,5298,5598,6304,201,902,2202,4799,5900,5701,5401,4301,3400,6202,2702,3601,4001,2601,102,5803,1500,2100,4103,4398,5302,4503,3197,1899,396,6403,302,3904,1698,6388,5797,401,4702,4402,3300,5201,4505,4205,6403,3100,5304,4801,4800,6301,4901,5602,1199,1799,799,6301,5001,3101,5701,5201,4801,2901,3201,703,6301,1401,3301,302,501,1908,3208,3801,1001,2505,2301,6099,2104,5098,3001,4598,4299,4199,597,5497,1499,704,1101,4105,5996,1298,1999,1598,1099,699,3500,2401,4397,2801,5597,2501,2002,3700,5299,5299,306,804,5600,201,901,2201,3202,5899,5700,5400,4003,3399,6201,2701,3600,4001,2601,102,5802,1499,2099,4103,4397,5301,4501,4095,1899,4094,3997,300,3903,1698,5997,6096,400,4700,4301,3299,5200,4503,4204,3101,5304,4801,4800,6301,4901,5602,1199,1799,799,6301,5001,3101,5701,5201,4800,2901,3201,703,1203,1401,3301,302,501,2903,4205,3801,1001,2505,2301,6098,2404,5098,3001,4598,4299,3902,598,5497,1499,2412,202,4104,5997,1297,1999,1598,1099,699,3500,2401,4396,2801,5597,2501,5097,3699,5299,5299,5896,5798,5600,200,902,2201,3201,5900,5700,5400,5900,3400,6202,2700,3601,4002,2601,103,5803,5200,2099,4103,4396,5301,4501,4095,1899,1098,3998,300,3903,1698,2698,1096,400,4700,4599,4686,5999,4503,4204,4803,5304,4402,4401,5901,4901,5602,1199,1800,799,4497,5001,3101,5701,5201,4800,2901,3201,703,1203,1401,3301,102,501,1903,405,3801,1002,2505,2301,6098,2104,5098,3001,4599,4298,2700,598,5497,1499,5398,202,4103,5996,1298,1999,1598,1098,699,3500,2401,4395,2801,5597,2501,4101,3699,5299,4997,2098,5297,5600,200,901,2201,3200,5900,5700,5401,5900,3400,2701,3601,4002,2601,103,5805,5201,2101,4103,3802,5302,4501,5801,1900,1098,398,301,3905,1700,2699,1096,400,4701,4600,3200,3804,802,4205,4803,5305,4904,1,5902,4902,5603,1199,1801,800,97,5002,1198,3101,5701,5201,4801,2901,3201,5602,702,1401,3301,102,501,1903,3,3801,1001,3499,2301,2105,5099,3002,4599,4299,1998,599,5498,1500,4698,810,3312,5997,1299,2000,1600,1098,701,5899,3499,2401,4395,2801,5597,2501,3897,3700,5600,5299,2098,4997,3204,199,901,2201,4500,5900,5701,5401,5900,3401,2701,3601,4001,2601,103,5805,5201,2101,4103,1699,5303,4501,5801,1900,3700,5902,300,3905,1700,500,1095,400,4701,4500,3201,2598,802,4204,4803,5305,4904,1,5502,4902,3402,1199,1801,800,97,5002,1198,3101,5701,5201,4801,2901,3201,5602,702,1401,3301,402,501,1911,2802,3801,1001,3499,2301,2405,5099,3002,4599,4299,2404,600,5498,1501,5399,1104,3312,1300,2002,1601,1100,701,5900,3500,2402,4397,2802,1602,5598,2501,3896,3700,5601,5299,5897,5595,5601,199,900,2201,2902,5901,5701,5401,1200,3400,2701,3602,4001,2601,102,5805,798,2101,4102,4301,5303,4501,3197,1901,3701,5903,300,3904,1700,500,1095,401,4701,4400,3200,3805,802,4204,4803,5305,4904,1,5502,4902,3402,1199,1801,800,97,5002,1198,3101,5701,5201,4801,2901,3201,504,703,1401,3301,402,501,3307,1802,3800,1001,701,2301,802,5099,3002,4599,4300,2404,600,5498,1501,5399,4197,5307,1300,2003,1601,1100,701,300,3500,2402,4396,2801,1602,5599,2501,909,3699,5299,5299,4894,4997,5601,200,899,2201,1804,5702,5402,3201,3401,2702,3604,4001,2602,103,5807,1502,2103,4103,5004,5303,4502,3199,1902,396,3595,302,3905,1701,1499,1096,402,4702,4301,1800,2600,3103,801,4203,4803,5202,4904,1,5800,4902,3402,1200,1801,800,97,5002,1199,3101,5701,5201,4801,2901,3201,2204,702,1401,3301,202,501,2309,2802,3800,1001,404,2301,802,5099,3002,4599,4299,2404,601,5499,1501,303,4198,2111,1301,2003,1601,1100,700,3102,3500,2402,4396,2800,1602,5599,2501,2002,3698,5299,4198,5194,1797,5601,201,900,2200,4500,5703,5403,4298,3402,2701,3603,4001,2602,1096,103,901,2103,4102,2797,5304,4502,3199,1902,1099,599,302,3904,1702,1696,2800,402,4702,1701,3102,3994,2503,800,4203,4803,5202,4504,1,4099,4902,4103,1200,1801,799,4097,5002,1199,3101,2202,5201,4801,2901,3201,2004,5601,1401,3301,202,502,5502,2802,3799,1001,700,2301,2903,5099,3002,4599,4299,2404,600,5498,1501,304,4197,1608,1301,2003,1601,1100,699,5598,3499,2402,4396,2801,1602,5599,2501,799,3698,5601,4198,2098,5596,5103,201,900,2199,3201,2199,5403,4298,3403,2701,3602,4000,2601,3602,104,1502,2102,4102,4999,5305,4503,3992,1903,1099,3707,302,3904,1702,500,3801,401,4702,1601,5201,4601,2503,800,4203,4803,3504,4504,1,5400,4902,3702,1201,1801,799,4097,5002,1200,3101,2202,5201,4801,2901,3201,407,503,1401,3301,2,501,5502,2802,3799,1001,700,2301,3899,5099,3002,4599,4299,2700,600,5498,1501,510,4497,2111,1301,2003,1602,1101,700,902,3498,2402,4396,2801,1001,2501,3895,3698,5301,5301,2099,4998,4602,203,901,4898,2199,3400,2199,5403,4298,3402,2702,3602,4000,2601,3602,103,3206,2102,4102,3401,5305,4503,4401,1903,3295,5403,301,3903,1702,499,3801,401,4701,1501,5202,4601,2503,800,4202,4803,3504,4504,1,3700,4902,2201,1201,1802,799,4097,5002,1200,3101,4201,5201,4801,2901,3201,2404,503,1401,3301,2,501,1698,2802,3799,1001,3502,2301,203,5099,3002,4599,4299,2403,601,1502,3401,3994,1209,1302,2004,1604,1102,701,503,3499,2402,4398,2802,4098,2501,3897,3698,5302,5302,4307,3898,806,203,901,4,2200,4802,1602,5405,4300,3402,2703,3602,4001,2603,2400,104,3507,2103,4103,5001,5306,4504,3497,1903,1101,5405,302,3904,1704,4501,598,401,4702,1402,3003,4601,5003,802,4203,3105,3505,4505,2,1497,4903,3699,1202,1803,801,4098,5003,1201,1702,3101,4201,5201,4801,2901,3201,2404,2,1401,3300,302,501,100,2208,3800,1001,3501,2301,5301,5099,3002,4599,4299,1801,601,1503,3401,3696,4103,1302,2004,1604,1102,701,3701,3498,2401,4398,2801,1301,4310,2501,4099,3696,4502,4200,5197,1798,2006,202,901,3797,2199,3996,2199,3202,3402,2704,3602,4001,2603,2400,103,3506,2103,4103,5002,5307,4504,4402,1903,1502,3706,301,3904,1704,4500,1099,400,4702,2904,3204,4202,5004,4503,4203,3106,1300,4105,2,5198,4903,1495,1202,1803,801,4500,5003,1201,1702,3101,4201,5201,4801,2901,3201,1100,2,1401,3300,302,501,4505,3205,3799,1001,2002,2301,203,5098,3002,4599,4299,2403,601,1503,410,2396,4103,1303,2004,1604,1102,701,3702,3497,2402,4398,2801,5006,3497,2501,800,3697,2909,4201,2099,4303,4603,201,902,3699,2198,3100,1601,4600,3401,2703,3601,4001,2604,1098,103,3506,2103,4104,3400,4506,4904,1904,2903,101,301,3905,1704,5191,5097,401,4702,3106,1902,2608,5005,4504,4204,902,5002,4106,3,1499,4904,3699,1203,1804,803,4501,5004,1602,1201,1702,3101,4201,4802,2902,3202,3604,1100,3,1401,3300,102,501,4,1705,3799,1001,1204,2301,3899,5098,3001,4599,4299,2403,601,1503,2900,2099,305,1304,2004,1604,1102,702,504,3497,2402,4398,2802,5007,700,2501,3895,3696,3405,4201,3697,805,4603,200,902,3797,2197,3997,1600,4301,3401,2703,3601,4002,2603,1099,102,3505,2102,4104,2801,4506,3603,1905,2904,3209,301,3905,1704,501,1101,401,4702,2510,897,4600,5005,3206,4204,902,3701,4106,3,1499,4904,3699,1203,1804,803,4501,5004,1602,1201,1702,3101,4201,4802,2902,3202,3603,1100,2,1401,3300,102,501,3,3,3800,1001,700,2301,3899,3001,4600,4300,2101,602,1504,3196,3697,1907,1305,2004,1605,1104,703,505,3499,2403,4399,2803,4100,701,2501,802,3697,4503,2411,3698,806,4604,202,903,3798,2199,3398,1601,5000,4802,3400,2704,3601,4002,2603,1099,101,3505,2102,4104,5008,4505,3603,1905,2798,1507,301,3906,1704,501,1792,402,4703,4502,1903,3206,5005,4504,4204,902,5002,1100,2,1498,4904,3698,1203,1804,803,98,5004,1602,1201,1702,3101,4201,4802,2902,3202,3603,4203,4901,1401,3300,302,501,3,1802,3800,1001,700,2301,100,3001,4600,4300,1202,602,1504,4600,3195,298,4599,1304,2002,1604,1104,702,3701,3497,2401,4398,2801,1004,1603,2500,801,3696,2903,4805,3697,4304,2903,201,902,3798,2198,4802,2999,1000,4301,3399,2704,3600,4001,2603,3600,100,2804,2102,4103,3099,4505,2300,1903,300,3406,301,3905,1704,1501,795,401,4702,1803,2903,3205,2506,4503,4203,4602,3699,4800,4799,4906,4903,3597,1203,1803,802,97,1602,1202,1702,3101,4201,4802,4707,2901,3201,3603,4201,3101,1400,3300,401,500,103,801,3799,1000,1204,2300,3898,2999,4600,4299,1201,601,1503,4600,3194,1200,301,1303,2001,1603,1103,701,3700,3496,2400,4397,2799,3109,1602,2500,800,3695,3595,1907,3697,4303,2303,200,901,2100,2197,3997,1400,2397,4300,3398,2702,3599,4000,2603,3599,99,4402,2101,4103,1700,4505,2299,1902,299,3405,300,3904,1703,299,1100,401,4701,4600,3200,3202,2505,3202,4202,3300,3698,1099,3696,3004,4504,1203,1803,802,97,1602,1202,1702,3101,4201,210,2902,3202,3604,3,3102,1401,3300,102,501,3905,1802,3800,1001,2199,2301,100,3000,4600,4300,1501,602,1504,612,2897,1201,2997,1304,2307,2001,1603,1103,701,3701,3496,2400,4398,2799,4098,1502,2500,3397,3696,4297,4103,3697,4303,3704,199,901,1502,2196,1499,1400,999,4300,3398,2701,3600,4001,2602,3600,99,4403,2102,4103,1699,4505,3092,1903,4604,3405,301,3903,1703,197,1100,401,4702,299,1801,3003,2506,3800,4202,3897,1299,1099,1297,1503,4504,1203,1803,802,98,1602,1202,1702,3101,4201,4413,2902,3201,3604,1204,702,1401,3300,3100,501,909,1802,3800,1001,2199,2301,100,3000,4600,4300,1999,602,1504,4600,2595,704,1200,1005,1303,2306,2000,1601,1102,701,1303,3495,2399,4398,2797,1002,2202,2498,799,3695,499,4405,3697,3394,2900,199,900,1501,2196,3193,1399,2398,4300,3397,2700,3599,4000,2600,3599,98,3503,2101,4101,997,4504,1003,1902,1205,3404,300,3902,1702,3300,599,400,299,1802,4000,3102,4599,4202,3299,1299,1098,1097,1503,4504,1203,1803,802,98,1602,1202,1702,3101,4201,4013,2902,3201,3604,1704,702,1401,3301,402,501,2907,1802,3800,1001,604,2301,3899,3001,4302,4499,603,1504,3901,1699,706,3696,712,1304,1807,2000,1601,1103,703,3299,3497,2399,4399,2797,503,2204,2498,800,3696,97,3996,498,3396,804,201,901,1501,2198,3397,2699,2398,3197,3399,1399,2699,3599,4000,2600,3599,99,3503,2101,4102,996,4505,201,1903,3406,4402,300,3902,1703,495,599,400,299,1801,4000,3102,3799,4203,3897,1300,3297,3296,3298,2203,1203,1803,803,99,1602,1202,1702,3101,4201,1007,2902,3202,1305,1704,702,1401,3301,2900,501,8,1802,3799,1001,4202,2301,3899,3000,4301,4201,604,1504,1008,2595,3599,3696,806,1304,1407,2000,1601,1103,703,207,3497,2398,4399,2797,3100,3304,2498,2401,3696,3192,2600,3698,3396,4198,201,900,2899,2199,3998,2699,2397,2302,3399,801,2699,3599,4000,2599,797,3598,98,1499,2101,4102,3792,602,1903,2905,4300,300,3901,1703,399,4297,401,299,1201,3202,3101,1803,4203,3897,1300,2898,1,3298,2203,1203,1803,803,99,1602,1202,1702,3101,4201,2907,2901,3202,804,3503,702,1401,3301,202,501,1003,1208,3799,1001,400,2300,3899,3000,4301,4200,604,1504,1310,997,706,4298,1111,1303,1905,2000,1601,1103,703,207,3497,2398,2799,3503,2013,2498,801,3697,501,3296,3699,4105,1604,202,900,2900,2199,1499,2699,800,1604,3400,1,2699,3601,4002,2600,2498,1702,99,2099,2103,4103,3294,2003,1904,4303,1400,302,3902,1705,2602,3301,402,890,199,1702,1300,2504,1803,4203,3299,3501,3495,1,3298,2203,1203,1803,803,701,1602,1202,1702,3101,4201,2907,2901,3202,2504,3,4201,1401,3301,2700,501,3,2205,3799,1001,3198,2300,3899,3000,2001,605,1505,710,2396,3211,1398,3298,1303,1906,2001,1602,1104,704,3216,3498,2398,2799,2802,2204,2498,802,3698,3598,2300,3699,3696,4100,203,901,2901,2199,4001,1103,2102,2505,3401,802,2700,3602,4003,2600,2499,3202,99,2100,2996,2103,4103,3294,2004,1904,706,1401,302,3903,1705,3904,600,402,1701,99,3801,2687,2504,3799,4203,3299,3501,898,1,3298,2203,1203,1803,803,701,1602,1202,1702,3101,702,3210,2902,3202,1910,3,3501,1401,3301,2,501,3,2800,3799,1001,2202,2299,100,3000,2000,605,1505,3905,2597,1806,3299,900,1303,407,2000,1601,1103,704,3702,3498,2397,2799,1107,3607,2498,3899,3698,2599,2299,3699,3399,2497,203,901,1304,2199,4001,3,2101,1605,3402,3502,2700,3602,4003,2600,2100,1603,100,3901,2997,2102,4104,1700,1004,3590,1904,1100,1400,301,3902,1704,3583,798,402,3600,795,3801,1804,3100,3799,3298,600,899,1,2500,2103,1203,1803,803,1601,1602,1202,1702,3101,702,3210,2902,3202,3408,3,2402,1401,3301,2500,501,11,3,3799,1001,2201,2299,100,3000,3301,605,1505,1008,2596,110,406,3298,1303,1408,1999,1601,1204,1101,703,3911,3497,2396,2798,2398,3600,2498,3898,3698,799,3296,2598,1305,3202,202,900,2602,2197,4000,3403,2100,1604,3401,3501,2699,3601,4003,2599,2101,2106,99,2197,1996,2101,1997,3603,899,1904,1496,1401,302,3902,1704,98,2898,402,1895,3499,3200,598,3899,3799,3298,2304,2498,1,2500,2003,1203,1803,803,401,1602,1202,1702,3101,2701,1613,2902,3202,3610,3502,2,1401,3300,302,501,1407,802,3798,1001,702,2299,3898,3000,1999,605,1505,1007,2596,811,1098,405,1303,1806,1999,1601,1204,1101,703,3703,3497,2397,2798,1106,2201,2497,801,3699,299,2599,3399,803,2197,202,899,1004,2196,3400,1102,501,2300,2794,3400,3500,2698,3601,2599,2705,3601,99,3800,1996,2100,1702,798,898,1903,2289,2404,302,3903,1705,2801,3486,401,3801,3399,2801,1805,1704,3799,901,3501,3095,1,2101,1903,1203,1803,803,1999,1602,1202,1702,3101,2701,1003,2902,3202,605,3502,2,1401,3300,2300,501,409,103,3798,1001,1002,2300,1409,3000,3405,1997,604,1504,310,2595,411,507,600,1301,1903,1997,1600,705,1100,702,1303,3497,2395,2798,1601,2199,2496,1998,3698,500,199,105,801,6,201,897,1302,2194,3699,2699,500,999,3602,3399,3398,2698,3600,2598,703,3799,99,3800,193,2099,1995,796,2800,1902,200,898,300,1705,590,2984,401,3802,3299,3604,1103,1902,3199,901,3502,498,1,3602,1803,1203,1803,803,498,1602,1202,1702,3101,2701,1003,2902,3202,1804,1703,2,1401,3300,102,501,3602,802,1002,401,2300,206,3001,3407,1998,605,1505,1011,1599,2201,3109,210,1302,1903,1997,1600,1203,1101,702,505,3499,2396,2799,3599,1509,2497,3603,3699,2597,2296,408,2903,2893,201,899,2902,2195,701,3000,501,299,202,3401,803,2699,3601,2600,2295,1905,100,2196,1099,2099,2102,96,2801,1902,1302,900,301,1787,1704,501,2997,401,1400,3199,3604,1993,1703,3199,3102,2201,499,2,3202,3601,1203,1803,803,1301,1602,1202,1702,3101,2701,1003,2902,3202,1105,104,2,1401,3300,2100,501,3602,802,1002,401,2300,1603,3001,1203,506,604,1504,1007,1302,2701,2195,805,1302,1902,1997,1599,3503,1100,701,505,3498,2396,2799,3599,2902,2497,2804,100,2709,2705,1899,1505,201,900,2099,2196,3402,1403,1002,300,802,3402,603,2700,3603,2601,698,2998,100,2197,1596,2100,2904,96,900,1903,1103,397,599,301,1002,1704,2701,2997,402,1401,3505,1804,2600,1703,803,3102,200,2098,2,3202,3601,1203,1803,803,1301,1602,1202,1702,3101,2701,2604,2611,2901,3201,1104,3202,3500,1400,3299,401,500,3096,801,1001,700,2299,1602,3000,1599,504,603,1502,609,2296,609,2304,2397,1301,1901,1997,1598,1103,1099,700,503,3497,2395,2798,1599,1503,2497,1997,2701,3298,2105,502,905,200,899,1501,2195,2000,1598,1206,2092,202,3401,602,2699,2601,1100,2096,100,2400,1598,2100,2904,2893,2803,1902,3503,100,901,302,1002,1703,2700,3197,402,1301,1705,400,2600,1103,803,903,200,2695,2,3500,3201,1203,1803,803,101,1602,1202,1702,3101,2701,2604,807,2901,3201,2902,309,2800,1399,3299,1899,500,199,801,1001,899,2299,703,3000,1598,404,603,1502,3301,2296,1799,596,2707,1300,1902,1996,1597,5,1099,700,3098,2397,2799,1599,504,2498,1997,2803,201,1405,2595,3095,201,899,1,2196,403,2196,1306,1599,203,3403,806,2701,2602,700,2999,101,1701,2203,2101,2104,1105,897,2803,1902,1608,100,1904,302,500,1703,2700,899,402,3292,1605,3298,3002,502,3200,903,201,98,2,1799,2202,1203,1803,803,101,1602,1202,1702,3101,2701,2604,1002,2901,3201,1600,303,1701,1399,3299,3098,500,2604,207,1001,899,2299,1699,3000,216,304,603,1501,1111,1300,2700,108,107,1299,708,1996,1596,3201,1099,700,3197,2397,2799,399,1404,2498,1997,1205,1905,3205,103,2894,201,900,2601,2197,3102,1598,1702,1298,203,806,2702,2604,1104,2401,102,1701,2097,2102,2105,1107,2904,902,1903,1105,3099,795,96,302,501,1702,2700,1700,402,3097,1505,3299,3003,503,3200,3103,1903,2804,2,3100,2202,1203,1803,803,101,1602,1202,1702,3101,2701,2604,1706,2901,3201,1299,303,701,1399,3099,501,407,2103,1204,1001,2303,2299,1004,3000,2914,1997,603,1501,1110,401,2707,107,1505,1299,2005,1996,1596,5,1098,699,1599,2397,2799,1893,1599,2498,799,501,200,308,607,1402,200,901,3000,2198,1200,3002,502,505,202,2204,2702,2604,2406,1998,102,1701,3200,2103,2106,107,2905,902,1903,698,3099,1996,103,302,2496,1702,502,1501,403,292,1405,99,2503,503,804,3103,2405,2804,2,1400,2202,1203,1803,803,1303,1602,1202,1702,3101,2701,2604,1303,2901,2004,909,702,1400,3100,502,408,1902,1800,1002,2903,2300,3102,3000,2516,1998,604,1502,1005,2501,2301,1395,2399,1299,2004,1997,1598,1102,1098,700,3099,2398,2801,1894,2596,2499,801,3000,200,2505,2797,1898,200,903,4,2199,703,1401,802,2503,2302,305,1,2702,2604,2701,2201,101,1701,1598,2103,2005,3,1398,903,1903,1491,1294,1494,103,303,702,1702,1401,1699,402,95,94,99,1205,3100,804,3103,2405,3102,2,2603,2202,1203,1803,803,1203,1602,1202,1702,3101,2701,2604,2601,2901,2004,1203,702,1400,2900,502,904,1902,3,1001,101,2300,2603,3000,1602,505,604,1503,1608,2899,506,1395,1698,1298,707,1998,1597,6,1098,700,702,2398,2802,1005,2596,2499,801,501,201,1199,2596,907,201,902,2102,2199,2803,1598,2102,499,2303,2904,1607,2703,103,2603,2303,1098,100,1700,997,2102,1099,1,2896,902,1903,1103,993,1795,400,302,701,1701,2702,896,402,998,400,1203,3002,503,804,903,2404,1400,1,2602,2201,1202,1802,802,101,1601,2500,1701,2701,2303,1003,2901,2004,2609,702,1400,303,502,903,2697,803,513,1000,1898,2299,2899,7,505,604,1502,808,2899,109,1705,2399,1298,1903,1998,1597,2003,1097,700,599,2398,2802,400,2401,2499,503,2102,1908,1801,1104,2897,201,901,1801,2200,2908,2200,2401,1001,2303,5,2407,2703,1999,2604,1401,1097,101,1700,1800,2102,2004,2000,2103,901,1903,102,698,1497,1403,303,702,1701,502,699,402,2792,300,300,899,2499,1102,903,2301,2701,1,1398,2201,1202,1802,802,101,1601,2500,1701,2701,1302,702,2805,2104,2503,1400,304,503,904,2006,504,2106,1000,903,2300,1700,605,506,605,1503,1098,1,2703,904,2400,1300,2606,1999,1598,7,1097,700,599,2399,2803,798,1501,2501,505,503,202,1003,2799,2707,202,902,2101,2201,707,2201,999,501,1697,2299,707,2606,2703,403,2604,1904,1704,101,101,1603,2103,2505,1006,498,901,1903,903,2296,1996,496,303,1893,1702,199,999,402,2299,200,2399,2596,2500,1102,1502,2301,1001,1,1398,2201,1201,1802,802,101,1601,2500,1701,2701,1301,702,2704,1504,2512,1400,304,503,409,1007,315,1404,1000,902,2504,2299,1908,305,1404,603,1502,696,803,1209,1897,603,1298,2206,1998,1597,6,1096,698,1201,2399,401,2599,2502,800,503,1802,2509,609,209,201,901,903,2201,106,1401,2403,1601,2200,999,305,1600,2704,1199,2604,2303,1099,102,2700,1502,2103,1204,207,1800,1403,1902,908,2297,1996,104,303,2698,1702,1600,109,402,2605,2300,195,2591,1100,804,1502,603,2204,1,2602,998,1201,1802,802,701,1601,2500,1701,1805,1301,2507,905,1004,2503,1401,706,503,2324,1008,802,2203,1000,1701,2503,2299,100,7,504,602,207,1501,501,1510,9,106,1197,1297,800,1997,1597,1704,1096,697,198,2399,400,1300,2501,1999,1507,1500,2503,804,2200,201,899,2405,2200,1102,1600,800,1104,2504,304,2006,800,303,2605,1307,1703,101,507,1503,2102,2105,1005,2605,402,1903,2399,2298,1996,1695,303,496,1702,988,1901,403,2597,2200,1799,2594,1897,803,1502,603,1000,2,2496,1992,1201,1802,802,701,1601,2500,1701,1805,1303,2203,1002,1301,502,912,1400,210,501,902,1107,2096,2202,1000,1401,2404,2298,199,1006,1499,601,1909,1500,499,5,699,2109,1496,1296,1903,1996,1596,2,1094,695,1891,2398,398,2397,2500,1899,1398,2101,899,102,2002,201,897,2305,2200,1297,2200,2102,901,2303,803,304,1301,303,1598,2102,101,102,1503,2103,1702,1005,1800,95,1903,1697,1490,1699,1294,304,495,1701,1797,1901,403,86,1700,1400,2402,2500,803,1502,1604,2301,2,1897,304,1201,1802,802,502,1601,2500,1701,1201,1303,2203,1001,1301,106,2,1400,2125,501,903,1306,705,803,999,1000,1509,2297,199,2401,1499,600,1413,1500,499,1097,793,1500,605,1296,598,1996,1596,1702,1094,694,395,2398,1703,997,901,500,2103,1108,3,1399,203,898,1597,2201,1899,1600,2403,203,993,1704,702,301,303,2102,1504,103,1703,1100,2105,1803,209,1999,1603,1903,7,1491,2097,997,305,1895,1702,1798,1901,403,1899,399,1301,2203,1200,1600,802,1502,1204,601,2,1897,304,1201,1802,802,302,1601,696,1701,1201,1303,2203,1001,1301,106,2,1400,302,501,902,1901,1604,108,999,1000,1104,2297,1698,810,1499,600,2014,1500,197,1999,1605,1100,300,1297,805,1997,1596,1702,1094,694,2098,398,1807,2001,2105,201,610,1902,2110,1997,202,898,898,2201,2103,1601,997,206,1805,502,403,502,701,1201,1000,104,2102,1100,2105,1806,2204,2000,900,1904,2304,1895,1385,1900,304,700,1702,1500,1901,403,1387,1899,2104,593,295,404,1900,1502,2005,1804,2,1098,304,1201,1802,802,1599,1601,1201,500,1201,1302,2203,1902,403,1403,2,1400,302,501,707,1901,1103,2104,1000,302,2004,1699,2101,1201,601,2,1501,107,2001,911,1501,1103,1298,1908,1999,1597,3,1095,696,395,299,397,193,2002,1111,200,1410,600,2006,1295,201,898,702,2201,795,1601,997,2009,1805,1498,1901,1508,899,697,1807,104,1096,1004,2105,1103,399,1694,600,1905,195,1694,1995,1306,304,1293,1701,1500,899,402,1696,1900,494,1200,685,1099,1403,1502,2005,2098,3,994,2201,1201,1802,802,1599,1601,1201,500,1201,1302,1602,1902,204,507,700,1400,304,301,500,705,913,799,2103,999,1799,1703,1698,605,1200,601,1602,1500,198,297,2011,302,1901,1297,1304,1997,1596,900,1095,694,296,297,205,401,300,2001,2103,1306,1100,2113,1594,200,897,1,9,1403,2105,1007,709,504,1009,799,905,596,697,103,99,903,2106,1103,1007,294,2098,1905,1804,1896,998,1304,303,1694,1701,1500,599,402,1400,1900,587,1486,1799,1898,1907,204,1996,1499,3,997,302,1201,1802,802,792,301,1201,500,1201,1303,1602,1902,2010,508,700,1399,304,301,501,1603,1803,101,2002,999,400,1703,1698,1705,513,600,704,1500,1696,1699,495,997,600,1297,794,1997,1596,798,1095,694,1998,896,194,394,1801,2000,1003,202,819,102,403,1996,198,897,1802,598,1404,798,609,1808,1507,296,1598,699,797,201,102,898,1503,899,1007,202,1806,1905,1199,296,586,704,303,700,1702,302,300,401,97,1796,1701,1897,1888,2008,801,1797,1699,1499,3,997,3,1201,1802,802,102,301,1201,500,1201,1012,1602,1902,803,8,701,1399,1203,101,500,1701,105,1904,900,999,1002,1902,197,1807,503,600,704,1500,799,102,196,104,1197,1297,1006,1598,1100,1096,695,796,602,592,1300,606,898,1004,401,702,305,1609,401,198,899,1600,495,1602,999,797,1203,1805,201,1400,397,1804,1005,102,1496,1505,304,9,706,1298,1907,1200,1097,799,1398,303,495,1703,501,601,402,97,404,1799,1899,8,1703,802,806,1300,701,4,998,1504,1803,1201,1802,802,1299,301,1201,500,1201,209,1602,1301,603,1402,212,1399,1202,103,500,303,1701,1105,900,999,999,900,197,8,208,600,306,1500,1207,1097,1700,103,603,1297,795,1599,695,1096,695,794,200,992,395,998,299,510,315,1001,996,1813,604,299,196,898,898,1200,1402,800,391,1202,1805,907,1601,1397,1701,1607,101,696,1204,1801,13,692,398,900,103,492,203,303,1187,1703,1504,601,402,84,404,907,1104,202,402,1703,806,1300,597,4,200,304,702,1201,1802,802,492,301,1201,500,1201,924,1102,1601,1300,1502,1401,700,1398,1201,1001,500,901,1700,402,799,998,998,899,1696,797,404,599,1602,1500,1597,1698,196,798,1596,1296,1711,1597,1198,1095,695,1696,1698,297,394,389,1104,1512,495,1104,1103,517,606,402,195,897,512,904,1600,799,203,605,403,1703,1399,495,497,1606,99,1704,1605,300,1403,200,1396,498,401,592,1204,302,485,1703,1500,1489,401,603,402,1004,1104,503,1399,1702,1700,397,599,3,199,303,205,1200,802,397,101,1201,500,1201,1413,101,1601,1300,1502,1000,700,1398,1201,1000,500,801,299,1201,1209,997,596,899,799,799,99,599,1602,1499,1401,698,195,403,788,1297,1297,1597,1198,1095,695,1100,494,297,1300,610,498,1098,1407,494,197,605,2,1601,598,194,896,295,406,1600,798,100,1304,1209,300,797,102,699,1606,98,399,1095,998,594,1399,900,106,1000,491,1203,301,1096,401,1499,401,802,402,904,1505,508,407,801,900,995,599,2,597,303,902,1200,802,799,798,1100,1296,1201,1013,100,300,1300,403,801,700,1398,1201,1196,500,701,1302,1094,1399,997,998,899,1206,5,98,599,704,1499,501,1006,290,1495,507,1298,593,1200,1096,696,697,393,400,1401,998,498,1310,707,496,198,298,698,802,398,195,897,296,1500,104,501,203,906,199,900,799,903,698,1096,99,100,1396,114,1202,1495,901,1297,902,1199,202,302,1097,413,898,500,401,1197,486,301,1099,599,1208,603,305,1501,1106,2,1301,303,303,1200,802,1303,1199,1100,1296,1201,806,100,300,800,403,1127,401,1398,1424,1196,501,900,603,700,1299,997,1202,899,500,1400,597,599,911,1007,699,196,98,1000,1298,501,397,1098,697,899,896,409,1001,293,610,603,1007,95,601,996,1209,203,1103,196,898,901,901,200,999,597,1203,906,199,1401,605,1102,1204,100,101,409,1397,491,603,599,499,708,701,1206,304,394,185,199,1301,402,1207,800,386,1198,1002,405,1303,1101,497,600,1105,2,1301,303,303,1200,802,1303,299,1100,796,1201,307,102,300,703,403,801,506,605,1001,502,1004,611,603,802,998,1202,806,800,1304,110,600,894,1009,808,197,206,95,1299,106,903,1100,698,893,395,293,127,492,195,701,311,1203,97,201,195,307,704,198,899,1,898,97,802,91,605,496,1004,906,910,506,6,101,398,109,1104,414,100,402,901,488,1095,690,305,1296,1289,792,784,403,305,1201,287,497,1004,1300,1303,102,398,900,600,906,1,1301,303,303,1200,802,1303,299,1100,197,1201,412,102,1001,98,503,798,408,1002,1197,502,204,1,102,806,998,100,900,800,1201,899,804,599,813,397,501,196,997,607,403,797,1099,698,894,101,1094,194,797,516,906,914,498,799,1108,1007,303,704,199,900,94,304,1106,504,201,201,505,503,203,1104,801,10,102,1105,1203,297,412,4,401,1211,905,502,789,305,701,705,201,100,402,591,800,398,1197,1113,403,501,298,298,901,1008,199,1,901,303,303,1200,802,199,299,1100,197,305,210,102,101,98,310,1099,700,602,404,501,1009,1,308,706,997,398,111,800,100,300,404,599,194,699,2,196,996,705,301,198,1099,698,191,396,403,994,592,489,1007,2,402,98,196,808,298,301,703,198,899,400,708,2,802,1100,410,502,299,801,709,503,10,101,395,1006,506,394,905,194,298,994,502,386,303,700,192,92,687,401,896,400,1097,1004,1101,103,500,103,606,595,905,902,901,203,300,302,802,903,697,700,896,305,210,101,300,98,102,911,800,304,997,501,397,796,601,802,997,500,215,800,500,992,806,599,804,296,802,692,806,203,199,996,903,699,16,592,810,399,204,892,907,103,402,501,196,597,6,1,97,198,899,403,1,411,802,614,915,501,605,604,604,98,709,101,201,195,601,504,190,903,603,894,585,991,303,1000,706,686,185,401,1002,1002,997,204,1003,103,500,299,305,99,599,902,901,103,300,805,802,298,897,700,396,901,118,601,100,299,97,5,499,799,706,203,500,396,210,698,800,2,110,316,200,300,597,599,107,721,102,897,504,292,401,898,399,700,502,102,403,798,192,212,888,510,409,501,786,500,609,605,384,198,899,602,380,302,802,499,708,801,302,605,94,701,400,101,303,496,506,87,908,904,408,402,598,85,303,195,706,705,3,400,9,801,897,695,600,402,102,901,301,398,600,505,504,3,300,200,802,99,897,700,301,5,807,601,101,299,97,5,507,399,800,796,500,194,108,496,802,699,4,503,215,199,299,804,599,512,800,108,195,306,101,499,207,102,698,698,394,401,595,796,394,499,799,211,97,200,105,97,502,295,197,798,92,3,803,498,705,801,503,802,604,709,317,102,103,799,507,195,497,401,203,605,601,797,302,704,304,702,291,400,507,708,797,802,502,500,301,397,301,497,700,102,101,102,300,1,802,391,800,700,301,5,706,601,205,399,97,415,401,96,105,505,500,409,600,501,596,499,699,707,609,607,500,303,598,1,100,605,195,103,701,592,609,692,698,94,101,402,304,196,406,200,398,402,11,197,397,97,202,299,197,693,578,701,504,201,285,392,699,712,499,100,503,102,693,504,703,4,202,694,402,191,705,202,302,104,307,689,398,401,407,196,607,501,592,694,402,700,202,587,404,504,503,700,300,199,292,601,302,397,301,601,516,601,207,602,97,402,410,400,212,599,499,495,406,207,596,2,197,207,607,603,486,95,598,1,496,616,195,387,101,396,104,302,502,105,102,590,399,306,606,502,412,308,414,583,105,605,497,198,197,605,503,188,603,601,601,99,599,406,97,308,402,102,103,397,396,401,203,300,409,501,601,202,303,91,493,95,192,401,307,81,95,490,505,489,298,497,7,499,595,198,197,603,596,193,502,198,302,189,301,3,502,2,233,100,97,96,401,200,101,309,499,95,400,305,412,197,499,500,107,495,298,503,495,397,296,196,395,312,386,507,92,106,202,111,295,371,278,206,506,301,413,1,424,490,495,94,307,199,3,199,1,11,192,401,407,201,498,503,98,326,401,103,497,407,12,209,198,104,193,205,3,502,303,111,405,495,101,401,207,187,305,305,502,396,292,389,385,387,396,199,198,486,379,403,99,398,199,202,301,103,202,302,211,300,97,408,95,102,202,198,96,95,193,198,1,397,2,412,6,87,14,390,189,108,198,305,4,200,99,5,207,207,188,281,404,5,91,298,5,1,403,100,324,195,94,100,99,199,199,104,201,412,398,11,307,105,302,405,397,408,1,104,211,2,12,199,103,96,212,191,404,390,303,205,302,194,109,402,83,297,86,210,101,202,288,401,203,104,100,299,298,193,300,299,299,398,1,202,301,301,207,302,210,301,97,204,101,13,136,98,299,298,95,308,310,306,193,302,291,198,203,190,210,197,97,294,101,107,309,7,91,208,295,7,310,8,192,203,200,289,100,100,294,107,108,104,103,199,197,115,106,203,194,297,97,299,307,101,92,310,295,1,103,201,96,106,309,191,293,209,102,104,113,303,291,10,4,278,186,297,196,201,113,299,195,299,98,205,200,3,2,204,195,200,301,301,1,202,301,245,205,101,242,1,97,134,207,200,107,35,91,102,3,211,207,92,97,2,199,3,102,113,218,3,187,184,105,192,8,207,197,186,6,203,80,96,175,194,212,1,201,207,215,86,18,108,182,104,198,13,107,98,195,87,15,95,190,100,1,110,1,2,205,102,93,7,206,108,107,1,1,185,14,5,83,205,4,87,101,197,96,203,200,108,7,89,198,1,201,194,193,100,106,96,77,4,1,189,198,104,121,38,101,1,97,34,107,99,21,8,91,94,7,6,103,101,102,93,97,8,1,15,87,96,8,89,13,2,21,1,89,92,12,100,123,9,91,82,87,89,97,10,6,90,82,98,102,102,99,4,93,24,99,99,74,104,116,5,10,95,99,106,99,103,82,13,108,92,1,107,104,112,100,92,91,105,75,87,103,97,100,13,9,104,7,100,98,11,101,98,97,100,106,2,83,4,1,102,98,1,3,43,42,3,2,1,2,9,9,7,23,21,1,8,1,3,16,1,11,2,1,1,1,9,1,19,13,13,7,1,1,1,1,5,1,4,11,20,1,6,17,6,5,21,4,12,1,10,1,1,14,1,10,7,8,10,1,1,1,5,11,9,1,1,1,1,1,11,1,9,1,1,1,15,1,3,3,1,9,1,1,11,1,9,4,2,6,1,3,1,4,1,7,6,3,1,2,1,1];
+    //     let interleaver=interleaver::transpositions_to_permutation(&trasposition);
+    //     println!("interleaver: [{:?}]", interleaver);
+    // }
+
+
+    #[test]
+    fn test_turbo_decoder_bsc_10000_interleaver() {
+        let mut errors_before = 0;
+        let mut errors_after = 0;
+        let total_bits = 10000 * 20;
+
+        // Vettori per i dati da plottare
+        let mut error_ratios_before = Vec::new();
+        let mut error_ratios_after = Vec::new();
+        let mut probabilities = Vec::new();
+
+        // Esegui il test per 150 iterazioni
+        for i in 0..150 {
+            let n = 10000; // Lunghezza vettore di input
+            let errors = turbo_code_bsc_10000_interleaver(n, i as f64 * 0.0065);
+
+            // Somma i bit errati
+            errors_before += errors.0;
+            errors_after += errors.1;
+
+            let error_ratio_before = errors_before as f64 / total_bits as f64;
+            let error_ratio_after = errors_after as f64 / total_bits as f64;
+            let probability = i as f64 * 0.0065;
+
+            // Popola i vettori per il grafico
+            probabilities.push(probability);
+            error_ratios_before.push(error_ratio_before);
+            error_ratios_after.push(error_ratio_after);
+
+            println!(
+                "Iterazione {}: Errori prima: {} e dopo decodifica: {}",
+                i, errors.0, errors.1
+            );
+        }
+
+        // Calcola il rapporto di errore totale
+        let final_error_ratio_before = error_ratios_before.last().unwrap();
+        let final_error_ratio_after = error_ratios_after.last().unwrap();
+
+        // Stampa i risultati finali
+        println!("Totale bit errati: {}", errors_after);
+        println!("Rapporto di errore finale prima: {:.6}", final_error_ratio_before);
+        println!("Rapporto di errore finale dopo: {:.6}", final_error_ratio_after);
+        println!("Errori prima: {} errori dopo: {}", errors_before, errors_after);
+
+        // Creazione del grafico
+        let root = BitMapBackend::new("error_probabilities_chart.png", (800, 600))
+            .into_drawing_area();
+        root.fill(&WHITE).unwrap();
+
+        let mut chart = ChartBuilder::on(&root)
+            .caption("Probabilità di Errore Prima e Dopo Decodifica", ("sans-serif", 30))
+            .margin(5)
+            .x_label_area_size(40)
+            .y_label_area_size(40)
+            .build_cartesian_2d(0.0..1.0, 0.0..1.0)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .x_desc("Probabilità di Errore (Prima Decodifica)")
+            .y_desc("Rapporto di Errore")
+            .draw()
+            .unwrap();
+
+        chart
+            .draw_series(LineSeries::new(
+                probabilities.iter().zip(error_ratios_before.iter()).map(|(&x, &y)| (x, y)),
+                &RED,
+            ))
+            .unwrap()
+            .label("Error Ratio Before")
+            .legend(|(x, y)| Path::new("M 0,0 L 10,0").into());
+
+        chart
+            .draw_series(LineSeries::new(
+                probabilities.iter().zip(error_ratios_after.iter()).map(|(&x, &y)| (x, y)),
+                &BLUE,
+            ))
+            .unwrap()
+            .label("Error Ratio After")
+            .legend(|(x, y)| Path::new("M 0,0 L 10,0").into());
+
+        chart
+            .configure_series_labels()
+            .position(SeriesLabelPosition::UpperLeft)
+            .draw()
+            .unwrap();
+    }
+
+
+    #[test]
+    fn test_turbo_codes_std(){
+        use kcimpl::{BSC, interleaver, TurboDecoder, TurboEncoder};
+         let interleaver = interleaver::generate_unique_random_vector(15);
+         let mut encoder = TurboEncoder::new(interleaver.clone());
+         let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
+         println!("interleaver random generated: {:?}", interleaver);
+
+         let mut channel = BSC::new(0.2);
+         let mut varianza =channel.sigma;
+
+         let input_vector: Vec<usize> = interleaver::generate_binary_vector(15);
+         let encoded_vector = encoder.execute(input_vector.clone());
+
+         let channel_vector = BSC::convert_to_symbols(&encoded_vector);
+         let bsc_channel_vector = channel.execute(&channel_vector); //canale con errore
+
+         println!("channel vector: {:?}", channel_vector);
+         println!("bsc errors vector: {:?}", bsc_channel_vector);
+
+         let decoded_vector: Vec<i32> = decoder.execute(bsc_channel_vector.clone(), &varianza)
+                     .iter().map(|&b| if b > 0.0 { 1 } else { 0 })
+                     .collect();
+
+
+         println!("\n--test_turbo_decoder--");
+         println!("input_vector = {:?}", input_vector);
+         println!("encoded_vector = {:?}", encoded_vector);
+         println!("decoded_vector = {:?}", decoded_vector);
+
+        let decoded_vector_trimmed: Vec<i32> = decoded_vector[..input_vector.len()].to_vec();
+         let converted_encoded: Vec<i32> = encoded_vector.iter().map(|&b| b as i32).collect();
+
+
+        // Controllo della correttezza
+        assert_eq!(
+            converted_encoded.iter().step_by(3).copied().collect::<Vec<_>>(),
+            decoded_vector
+        );
+         //assert_eq!(converted_input, decoded_vector_trimmed); // Confronto corretto
+    }
+
+
+
+
+
 }

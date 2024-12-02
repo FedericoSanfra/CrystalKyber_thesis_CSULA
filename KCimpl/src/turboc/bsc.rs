@@ -20,17 +20,21 @@ pub struct BSC {
 impl BSC {
     // Crea una nuova istanza di BSC con una probabilità di errore specifica tra 0 e 1
     pub fn new(error_prob: f64) -> Self {
-       if error_prob<=1.0 && error_prob>= 0.0 {
-           Self{
-               error_prob,
-               sigma: ((1.0 - error_prob) / error_prob).ln() //livello -1.0 oppure 0
-           }
-       } else {
-           Self {
-               error_prob: 0.0, //se considerato non valida, metto di default 0.0, nessun errore
-               sigma: f64::INFINITY
-           }
-       }
+        match error_prob {
+            prob if prob > 0.0 && prob < 1.0 => Self {
+                error_prob: prob,
+                sigma: ((1.0 - prob) / prob).ln(),
+            },
+            1.0 => Self {
+                error_prob: 1.0,
+                sigma: f64::NEG_INFINITY,
+            },
+            0.0 => Self {
+                error_prob: 0.0,
+                sigma: f64::INFINITY,
+            },
+            _ => panic!("error_prob must be between 0 and 1 (inclusive)."),
+        }
     }
 
     // Metodo per convertire un vettore di bit (0,1) in simboli (+1, -1)

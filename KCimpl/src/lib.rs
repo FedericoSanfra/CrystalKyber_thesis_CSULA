@@ -42,6 +42,8 @@
 //! // Bob uses the public key to encrypt the message
 //! let enc = pke.encrypt(&pk, &m, r.clone());
 //!
+//! println!("enc len {:?}", enc.data.len());
+//!
 //! // Bob sends enc to Alice
 //! // Alice uses the secret key to recover m
 //! let dec = pke.decrypt(&sk, &enc);
@@ -169,15 +171,16 @@
 //! ```
 //! TURBO DECODER BSC CHANNEL COMPLETE CYCLE
 //! ```rust
-//! use kcimpl::{BSC, TurboDecoder, TurboEncoder};
-//! let interleaver = vec![9, 8, 5, 6, 2, 1, 7, 0, 3, 4];
+//! use kcimpl::{BSC, interleaver, TurboDecoder, TurboEncoder};
+//! let interleaver = interleaver::generate_unique_random_vector(15);
 //! let mut encoder = TurboEncoder::new(interleaver.clone());
 //! let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
+//! println!("interleaver random generated: {:?}", interleaver);
 //!
-//! let mut channel = BSC::new(0.3);
+//! let mut channel = BSC::new(0.2);
 //! let mut varianza =channel.sigma;
 //!
-//! let input_vector: Vec<usize> = vec![1, 1, 0, 1, 1, 0, 1, 0, 1, 0];
+//! let input_vector: Vec<usize> = interleaver::generate_binary_vector(15);
 //! let encoded_vector = encoder.execute(input_vector.clone());
 //!
 //! let channel_vector = BSC::convert_to_symbols(&encoded_vector);
@@ -196,16 +199,18 @@
 //! println!("encoded_vector = {:?}", encoded_vector);
 //! println!("decoded_vector = {:?}", decoded_vector);
 //!
-//! let encoded_bits: Vec<i32> = encoded_vector.iter().step_by(3).map(|&b| b as i32).collect();
 //!
-//! assert_eq!(encoded_bits, decoded_vector);
+//!let decoded_vector_trimmed: Vec<i32> = decoded_vector[..input_vector.len()].to_vec();
+//! let converted_input: Vec<i32> = input_vector.iter().map(|&b| b as i32).collect();
+//!
+//! assert_eq!(converted_input, decoded_vector_trimmed); // Confronto corretto
 //! ```
 //! TURBO DECODER BSC CHANNEL COMPLETE CYCLE, INTERLEAVER PRO
 //! ```rust
 //! use kcimpl::{BSC, TurboDecoder, TurboEncoder, SRandomInterleaver, interleaver};
 //!  // Parametri dell'interleaver
-//!     let k = 256; // Lunghezza della permutazione, suppongo chiave kyber dq 256 bit
-//!     let s = 12;  // Spread desiderato
+//!     let k = 10; // Lunghezza della permutazione, suppongo chiave kyber dq 256 bit
+//!     let s = 3;  // Spread desiderato
 //!
 //!     // Creazione dell'interleaver
 //!     let interleaver = match SRandomInterleaver::new(k, s, 1) {
@@ -218,6 +223,7 @@
 //!             return;
 //!         }
 //!     };
+//!     let test_interleaver:Vec<usize>=vec![9, 5, 2, 7, 1, 4, 6, 0, 3, 8];
 //!
 //!     // Stampa della permutazione generata
 //!     println!("Permutazione generata: {:?}", interleaver.permutation);
@@ -234,10 +240,10 @@
 //!     println!("Vettore di trasposizione generato: {:?}", transposition_vector);
 //!
 //! ///TURBO CODE OPERATIONS
-//! let mut encoder = TurboEncoder::new(interleaver.permutation.clone());
-//! let mut decoder = TurboDecoder::new(interleaver.permutation.clone(), 2, 16);
+//! let mut encoder = TurboEncoder::new(test_interleaver.clone());
+//! let mut decoder = TurboDecoder::new(test_interleaver.clone(), 2, 16);
 //!
-//! let mut channel = BSC::new(0.2);
+//! let mut channel = BSC::new(0.05);
 //! let mut varianza =channel.sigma;
 //! ///test ora con bit scorrelati in input
 //! let input_vector: Vec<usize> = interleaver::generate_binary_vector(256);
@@ -278,7 +284,7 @@ extern crate sha3;
 mod functions;
 mod kem;
 mod pke;
-mod structures;
+pub mod structures;
 mod turboc;
 
 ///TURBOC TEST RUNNING

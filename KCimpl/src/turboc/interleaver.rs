@@ -1,4 +1,5 @@
-use rand::Rng;
+use rand::{Rng, thread_rng};
+use rand::seq::SliceRandom;
 
 pub struct SRandomInterleaver {
     pub permutation: Vec<usize>,
@@ -20,6 +21,8 @@ impl SRandomInterleaver {
         }
         None
     }
+
+
 
     fn generate_permutation(k: usize, s: usize) -> Option<Vec<usize>> {
         let mut rng = rand::thread_rng();
@@ -94,12 +97,40 @@ pub fn calculate_transposition(permutation: &[usize]) -> Vec<usize> {
 }
 
 
+/// Convert a vector of transpositions to a permutation vector for use as an interleaver.
+pub fn transpositions_to_permutation(transpositions: &[usize]) -> Vec<usize> {
+    let n = transpositions.len();
+    let mut permutation = (0..n).collect::<Vec<_>>(); // Start with identity permutation
+
+    for i in 0..n {
+        permutation.swap(i, transpositions[i]); // Apply each transposition
+    }
+
+    permutation
+}
+
 pub fn generate_binary_vector(size: usize) -> Vec<usize> { ///for testing purposes
     let mut rng = rand::thread_rng();
     (0..size).map(|_| rng.gen_range(0..=1)).collect()
 }
 
+pub fn generate_unique_random_vector(n: usize) -> Vec<usize> {
+    if n == 0 {
+        return Vec::new();
+    }
 
+    // Crea un vettore con i numeri da 0 a n-1
+    let mut numbers: Vec<usize> = (0..n).collect();
+    let mut rng = thread_rng();
+
+    // Mescola i numeri
+    numbers.shuffle(&mut rng);
+
+    numbers
+}
+pub fn convert_usize_to_i32(vec: Vec<usize>) -> Vec<i32> {
+    vec.into_iter().map(|x| x as i32).collect()
+}
 #[cfg(test)]
 mod tests {
     use super::*;
