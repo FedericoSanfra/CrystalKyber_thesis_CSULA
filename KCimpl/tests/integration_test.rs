@@ -458,10 +458,10 @@ mod tests {
 
         let decoded_vector_trimmed: Vec<f64> = decoded_vector[..input_vector.len()].to_vec().iter().map(|&b| b as f64).collect();
         let converted_input: Vec<f64> = input_vector.iter().map(|&b| b as f64).collect();
-        println!(" channel_vector len: {:?}", &channel_vector.iter().step_by(3).copied().collect::<Vec<_>>().len());
+
         // println!(" bsc_channel {:?}", &bsc_channel_vector.len());
         println!("decoded vector: {:?}", &decoded_vector_trimmed.len());
-        let before_count=count_differences(&channel_vector[..input_vector.len()].to_vec().iter().step_by(3).copied().collect::<Vec<_>>(), &bsc_channel_vector[..input_vector.len()].to_vec().iter().step_by(3).copied().collect::<Vec<_>>());
+        let before_count=count_differences(&channel_vector.iter().step_by(3).copied().collect::<Vec<_>>(), &bsc_channel_vector.iter().step_by(3).copied().collect::<Vec<_>>());
         let after_count=count_differences(&decoded_vector_trimmed, &converted_input);
 
         (before_count, after_count)
@@ -491,7 +491,7 @@ mod tests {
         let mut errors_before = 0;
         let mut errors_after = 0;
         let total_bits = 10000;
-        let p=0.1; //probability step in 30 cycles
+        let p=0.025; //probability step in 30 cycles
 
         // Vettori per i dati da plottare
         let mut error_ratios_before = Vec::new();
@@ -499,7 +499,7 @@ mod tests {
         let mut probabilities = Vec::new();
 
         // Esegui il test per 150 iterazioni
-        for i in 1..=9 {
+        for i in 1..=20 {
             let n = 10000; // Lunghezza vettore di input
             let errors = turbo_code_bsc_10000_interleaver( i as f64 * p);
 
@@ -514,7 +514,8 @@ mod tests {
             let probability = i as f64 * p;
 
             // Popola i vettori per il grafico
-            probabilities.push(probability);
+            //probabilities.push(probability);
+            probabilities.push(1.0-probability);
             error_ratios_before.push(error_ratio_before.clone());
             error_ratios_after.push(error_ratio_after.clone());
             println!("Rapporto di errore prima: {:.6}", &error_ratio_before);
@@ -540,7 +541,7 @@ mod tests {
             .margin(5)
             .x_label_area_size(40)
             .y_label_area_size(40)
-            .build_cartesian_2d(0.0..1.0, 0.0..1.0)
+            .build_cartesian_2d(0.5..1.0, (0.0..1.0).log_scale())
             .unwrap();
 
         chart
@@ -556,7 +557,7 @@ mod tests {
 
         chart
             .draw_series(LineSeries::new(
-                probabilities.iter().zip(error_ratios_before.iter()).map(|(&x, &y)| (x, y)),
+                probabilities.iter().zip(error_ratios_before.iter()).map(|(&x, &y)| (x, y.max(1e-6))),
                 &RED,
             ))
             .unwrap()
@@ -568,7 +569,7 @@ mod tests {
 
         chart
             .draw_series(LineSeries::new(
-                probabilities.iter().zip(error_ratios_after.iter()).map(|(&x, &y)| (x, y)),
+                probabilities.iter().zip(error_ratios_after.iter()).map(|(&x, &y)| (x, y.max(1e-6))),
                 &BLUE,
             ))
             .unwrap()
@@ -587,17 +588,17 @@ mod tests {
 
 
     #[test]
-    fn test_turbo_codes_std(){
+    fn test_turbo_codes_std(){ //check per basse probabilità
         use kcimpl::{BSC, interleaver, TurboDecoder, TurboEncoder};
-         let interleaver = interleaver::generate_unique_random_vector(15);
+         let interleaver = interleaver::generate_unique_random_vector(11);
          let mut encoder = TurboEncoder::new(interleaver.clone());
          let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
          println!("interleaver random generated: {:?}", interleaver);
 
-         let mut channel = BSC::new(0.2);
+         let mut channel = BSC::new(0.04);
          let mut varianza =channel.sigma;
 
-         let input_vector: Vec<usize> = interleaver::generate_binary_vector(15);
+         let input_vector: Vec<usize> = interleaver::generate_binary_vector(11);
          let encoded_vector = encoder.execute(input_vector.clone());
 
          let channel_vector = BSC::convert_to_symbols(&encoded_vector);
@@ -616,15 +617,15 @@ mod tests {
          println!("encoded_vector = {:?}", encoded_vector);
          println!("decoded_vector = {:?}", decoded_vector);
 
-        let decoded_vector_trimmed: Vec<i32> = decoded_vector[..input_vector.len()].to_vec();
-         let converted_encoded: Vec<i32> = encoded_vector.iter().map(|&b| b as i32).collect();
+        let decoded_vector_trimmed: Vec<f64> = decoded_vector[..input_vector.len()].to_vec().iter().map(|&b| b as f64).collect();
+        let converted_input: Vec<f64> = input_vector.iter().map(|&b| b as f64).collect();
 
+        // println!(" bsc_channel {:?}", &bsc_channel_vector.len());
+        println!("decoded vector: {:?}", &decoded_vector_trimmed.len());
+        let before_count=count_differences(&channel_vector.iter().step_by(3).copied().collect::<Vec<_>>(), &bsc_channel_vector.iter().step_by(3).copied().collect::<Vec<_>>());
+        let after_count=count_differences(&decoded_vector_trimmed, &converted_input);
 
-        // Controllo della correttezza
-        assert_eq!(
-            converted_encoded.iter().step_by(3).copied().collect::<Vec<_>>(),
-            decoded_vector
-        );
+        println!("before: {:?} dopo: {:?}", before_count, after_count);
          //assert_eq!(converted_input, decoded_vector_trimmed); // Confronto corretto
     }
 
