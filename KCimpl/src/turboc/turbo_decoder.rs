@@ -103,7 +103,7 @@ impl TurboDecoder {
 
         let mut llr_1 = self.decoders[0].execute(input_tuples.clone());
         for (i, llr) in llr_1.iter_mut().enumerate() {
-            *llr -= self.llr_ext[i] + (vector[i] * sigma);
+            *llr -= self.llr_ext[i] + (vector[i*3] * sigma);
         }
 
         let llr_interleaved = self.interleave(&llr_1);
@@ -116,7 +116,8 @@ impl TurboDecoder {
 
         let mut llr_2 = self.decoders[1].execute(input_tuples.clone());
         for (i, llr) in llr_2.iter_mut().enumerate() {
-            *llr -= llr_interleaved[i] + (input_interleaved[i] * sigma); //metrica log((1-p)/p)
+            *llr -= llr_interleaved[i] ;
+                //+ (input_interleaved[i] * sigma); //metrica log((1-p)/p)
         }
 
         self.llr_ext = self.deinterleave(&llr_2);
@@ -125,10 +126,11 @@ impl TurboDecoder {
     }
 
 
-    pub fn execute(&mut self, vector: Vec<f64>, varianza: &f64) -> Vec<f64> {
+    pub fn execute(&mut self, vector: Vec<f64>, init_metric: &f64) -> Vec<f64> {
         //println!("vectore in execute len {:?}",vector.len());
-        for _ in 0..self.max_iter {
-            if self.iterate_bsc(&vector, &varianza) { //try the bsc version of iterate
+        for k in 0..self.max_iter {
+            //let current_metric = if k == 0 { *init_metric } else { 0.0 };
+            if self.iterate(&vector, &init_metric) { //try the bsc version of iterate
                 break;
             }
         }

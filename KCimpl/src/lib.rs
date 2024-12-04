@@ -177,7 +177,7 @@
 //! let mut decoder = TurboDecoder::new(interleaver.clone(), 2, 16);
 //! println!("interleaver random generated: {:?}", interleaver);
 //!
-//! let mut channel = BSC::new(0.2);
+//! let mut channel = BSC::new(0.002);
 //! let mut varianza =channel.sigma;
 //!
 //! let input_vector: Vec<usize> = interleaver::generate_binary_vector(15);
