@@ -78,3 +78,90 @@ pub fn bits_to_levels(bin_vec: Vec<i32>) -> Vec<i32> {
 pub fn levels_to_bits(levels: Vec<i32>) -> Vec<i32> {
     levels.into_iter().map(|x| if x == 1 { 1 } else { 0 }).collect()
 }
+
+///IN SISO DECODER
+
+// Funzione per il calcolo di alpha usando il log-BCJR
+pub fn alpha1(ao: &Vec<f64>, gp: &Vec<f64>, gsys: &Vec<f64>, s: usize) -> f64 {
+    // Definizione delle variabili Sm e x
+    let mut sm = vec![0; 2]; // Stati predecessori
+    let mut x = vec![0; 2];  // Indici per le transizioni
+
+    // Determinazione dei predecessori dello stato e dei relativi indici di transizione
+    match s {
+        1 => {
+            sm[0] = 1; x[0] = 1;
+            sm[1] = 3; x[1] = 2;
+        },
+        2 => {
+            sm[0] = 3; x[0] = 1;
+            sm[1] = 1; x[1] = 2;
+        },
+        3 => {
+            sm[0] = 4; x[0] = 2;
+            sm[1] = 2; x[1] = 1;
+        },
+        4 => {
+            sm[0] = 2; x[0] = 2;
+            sm[1] = 4; x[1] = 1;
+        },
+        _ => println!("Invalid state S: {} in alpha 1", s),
+    }
+
+    // Calcolo del termine di normalizzazione log-cosh
+    let a1 = ao[sm[0] - 1] + gp[x[0] - 1] + gsys[0];
+    let a2 = ao[sm[1] - 1] + gp[x[1] - 1] + gsys[1];
+    let cosh_term = 0.5 * (a1 - a2);
+    let log_cosh = cosh_term.cosh().ln();
+
+    // Calcolo del valore di alpha aggiornato
+    0.5 * (a1 + a2) + log_cosh
+}
+
+
+pub fn beta1( //funzione di backward recursion
+    gp: [&[f64]; 2], //matrice [gp1, gp2]
+    gsys: [&[f64]; 2], //matrice [sys1, sys2]
+    d: usize, //delay parameter
+    mut bo: Vec<f64>,
+) -> Vec<Vec<f64>> {
+    let mut b = vec![vec![0.0; d]; 4]; // Matrice B di output
+
+    // Loop principale di ricorsione inversa
+    for l in 0..d {
+        // Loop di aggiornamento degli stati
+        for s in 0..4 {
+            // Successori dello stato S
+            let (sp, x) = match s {
+                0 => ([0, 1], [0, 1]), // Sp(1)=Splus(u=1), Sp(2)=Splus(u=-1)
+                1 => ([3, 2], [1, 0]),
+                2 => ([1, 0], [0, 1]),
+                3 => ([2, 3], [1, 0]),
+                _ => panic!("Invalid state S: {} in beta1", s),
+            };
+
+            // Calcolo di B(S, D-l)
+            let a1 = bo[sp[0]] + gp[x[0]][d - l - 1] + gsys[0][d - l - 1];
+            let a2 = bo[sp[1]] + gp[x[1]][d - l - 1] + gsys[1][d - l - 1];
+            let cosh_term = 0.5 * (a1 - a2);
+            let log_cosh = cosh_term.cosh().ln();
+
+            b[s][d - l - 1] = 0.5 * (a1 + a2) + log_cosh;
+        }
+
+        // Inizializzazione per la prossima iterazione
+        bo = b.iter().map(|row| row[d - l - 1]).collect();
+    }
+
+    // Normalizzazione della matrice B
+    let first_row = b[0].clone();
+    for row in b.iter_mut().skip(1) {
+        for (i, val) in row.iter_mut().enumerate() {
+            *val -= first_row[i];
+        }
+    }
+    b[0] = vec![0.0; d];
+
+    // Restituzione della matrice B
+    b
+}
