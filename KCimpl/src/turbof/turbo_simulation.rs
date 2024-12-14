@@ -68,9 +68,9 @@ impl TurboSimulation{
             let start_idx = k1 * self.block_size;
             let end_idx = (k1 + 1) * self.block_size;
             let u: Vec<i32> = utot[start_idx..end_idx].to_vec();
-
+            let mut err:Vec<Vec<f64>>=vec![vec![0.0; m];self.iterations];
             // Simulate the decoding process
-            total_error += self.simulate_decoding(u);
+            total_error += self.simulate_process(u, err.clone(), k1);
         }
 
         // Calculate the average error probability
@@ -78,10 +78,10 @@ impl TurboSimulation{
     }
 
     // Simulate encoding and decoding process
-    fn simulate_process(&self, vec_block: Vec<i32>) -> f64 {
+    fn simulate_process(&self, vec_block: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> f64 {
         // Placeholder for the actual decoding process using MPTST2B and error calculation
         let mut encoder =TurboEncoder::new(vec_block, self.perm.clone());
-        let (u, sys1, sys2)=encoder.encode();
+        let (u,up, sys1, sys2)=encoder.encode();
 
         let ls = u.len() - 2; // Calcola la lunghezza dei dati originali, senza l'estensione
 
@@ -110,9 +110,9 @@ impl TurboSimulation{
         //ls adesso vale la lunghezza originale senza estensione
         //provo a usare i livelli
 
-        let turbo_decoder=TurboDecoder::new(u_levels.clone(),self.error_probability, 1, ls); //r13 vale 1 rate 1/3
+        let mut turbo_decoder =TurboDecoder::new(u_levels.clone(), self.error_probability, 1, ls, up); //r13 vale 1 rate 1/3
 
-        turbo_decoder.decode();
+        turbo_decoder.decode(self.iterations, self.perm.clone(), err, k1);
         // For now, we will just return a random error rate for illustration
         let rand_error: f64 = rand::random();
         rand_error
