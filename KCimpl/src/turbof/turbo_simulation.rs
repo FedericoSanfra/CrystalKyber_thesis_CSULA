@@ -1,5 +1,8 @@
 use crate::turbof::turbo_encoder::TurboEncoder;
 use crate::turbof::utils::generate_pn_sequence;
+use crate::turbof::bsc_channel::generate_noise_vector;
+use crate::turbof::turbo_decoder::TurboDecoder;
+use crate::turbof::utils;
 
 pub struct TurboSimulation {
     perm: Vec<i32>,
@@ -77,27 +80,39 @@ impl TurboSimulation{
     // Simulate encoding and decoding process
     fn simulate_process(&self, vec_block: Vec<i32>) -> f64 {
         // Placeholder for the actual decoding process using MPTST2B and error calculation
-        let encoder=TurboEncoder::new(vec_block, self.perm.clone());
-        let (u, sys1, sys2)=encoder.
+        let mut encoder =TurboEncoder::new(vec_block, self.perm.clone());
+        let (u, sys1, sys2)=encoder.encode();
 
         let ls = u.len() - 2; // Calcola la lunghezza dei dati originali, senza l'estensione
 
+        let n=generate_noise_vector(ls, self.error_probability); //vettore di rumore in levels
+
+        let u_levels=utils::bits_to_levels(u);
+        let sys1_levels=utils::bits_to_levels(sys1);
+        let sys2_levels=utils::bits_to_levels(sys2);
+
         // Primo bit sistematico con rumore
-        let rs1: Vec<f64> = u.iter().zip(&n[0..ls + 2]).map(|(&ui, &ni)| ui * ni).collect();
+        let rs1: Vec<i32> = u_levels.iter().zip(&n[0..ls + 2]).map(|(&ui, &ni)| ui * ni).collect();
 
         // Upper RSC con rumore
-        let ry1: Vec<f64> = y1.iter()
+        let ry1: Vec<i32> = sys1_levels.iter()
             .zip(&n[ls + 2..2 * ls + 4])
             .map(|(&yi, &ni)| yi * ni)
             .collect();
 
         // Lower RSC con rumore
-        let ry2: Vec<f64> = y2.iter()
+        let ry2: Vec<i32> = sys2_levels.iter()
             .zip(&n[2 * ls + 4..3 * ls + 6])
             .map(|(&yi, &ni)| yi * ni)
             .collect();
 
 
+        //ls adesso vale la lunghezza originale senza estensione
+        //provo a usare i livelli
+
+        let turbo_decoder=TurboDecoder::new(u_levels.clone(),self.error_probability, 1, ls); //r13 vale 1 rate 1/3
+
+        turbo_decoder.decode();
         // For now, we will just return a random error rate for illustration
         let rand_error: f64 = rand::random();
         rand_error

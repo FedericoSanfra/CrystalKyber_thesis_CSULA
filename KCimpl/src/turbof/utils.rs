@@ -68,3 +68,13 @@ pub fn generate_random_binary_input(n: usize) -> Vec<i32> {
 
     binary_input
 }
+
+// Funzione per convertire un vettore di numeri binari in un vettore di 1 e -1
+pub fn bits_to_levels(bin_vec: Vec<i32>) -> Vec<i32> {
+    bin_vec.into_iter().map(|x| if x == 0 { -1 } else { 1 }).collect()
+}
+
+// Funzione per convertire un vettore di 1 e -1 in un vettore di numeri binari
+pub fn levels_to_bits(levels: Vec<i32>) -> Vec<i32> {
+    levels.into_iter().map(|x| if x == 1 { 1 } else { 0 }).collect()
+}
