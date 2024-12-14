@@ -1,7 +1,6 @@
-pub mod turbo_simulation;
-pub mod interleaver;
-pub mod turbo_decoder;
-pub mod RSCEncoder;
-pub mod siso_decoder;
-pub mod utils;
-pub mod turbo_encoder;
+mod turbo_simulation;
+mod utils;
+mod interleaver;
+mod rsc_encoder;
+mod bsc_channel;
+mod turbo_encoder;

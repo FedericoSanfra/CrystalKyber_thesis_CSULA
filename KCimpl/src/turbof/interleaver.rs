@@ -1,202 +1,269 @@
-use crate::turbof::utils::symbols_to_bits;
+pub struct Interleaver{
 
-pub struct Interleaver {
-    permutation: Vec<usize>,
-    inverse_permutation: Vec<usize>,
 }
 
-impl Interleaver {
-    /// Crea un nuovo interleaver con il vettore di permutazione dato
-    pub fn new(permutation: Vec<usize>) -> Self {
-        let inverse_permutation = invperm(&permutation);
+impl Interleaver{
 
-        Self {
-            permutation,
-            inverse_permutation,
+    pub fn new()-> Self{
+        Self{
+
         }
     }
 
-    /// Applica l'interleaving ai dati
-    pub fn interleave(&self, data: Vec<f64>) -> Vec<i32> {
-        mapint(data.len(), &symbols_to_bits(data), &self.permutation)
+//ern is the u, in the previous function
+    pub fn mapint(ls: usize, ern: Vec<i32>, perm2: Vec<i32>) -> Vec<i32> {
+        let mut out = Vec::new();
+        let num = perm2.len();  // lunghezza di perm2
+        let parse = (ls as f64 / num as f64).floor() as usize;  // numero di blocchi di dati
+        let parse = if parse == 0 { 1 } else { parse };  // Impostazione del numero minimo di blocchi
+        let mut t:Vec<i32>=Vec::new();
+
+        for j in 0..parse {
+            let mut t2 = ern[(num * j)..(num * (j + 1))].to_vec();  // estrai il blocco t2
+            if t2.iter().sum::<i32>() == t2.len() as i32 {  // Verifica se t2 è tutto 1
+                out.extend_from_slice(&t2);  // Aggiungi t2 a out
+            } else {
+                for l in 0..num {
+                    if perm2[l] == 1 {
+                        if 2 * (l / 2) < l {  // l è dispari
+                            out.push(t2[0]);  // Genera l'output
+                            t = t2[1..(1 + num - l)].to_vec();  // Riprova la permutazione
+                            t2 = Vec::new();
+                        } else {  // l è pari
+                            out.push(t[0]);  // Genera l'output
+                            t2 = t[1..(1 + num - l)].to_vec();  // Riprova la permutazione
+                        }
+                    } else if perm2[l] == 2 {
+                        if 2 * (l / 2) < l {  // l è dispari
+                            out.push(t2[1]);  // Genera l'output
+                            let mut t = vec![t2[0]].into_iter().chain(t2[2..(1 + num - l)].iter().cloned()).collect::<Vec<_>>();  // Ridimensiona
+                            t2 = Vec::new();
+                        } else {  // l è pari
+                            out.push(t[1]);  // Genera l'output
+                            t2 = vec![t[0]].into_iter().chain(t[2..(1 + num - l)].iter().cloned()).collect::<Vec<_>>();  // Ridimensiona
+                        }
+                    } else {
+                        if 2 * (l / 2) < l {  // l è dispari
+                            out.push(t2[perm2[l] as usize]);  // Genera l'output
+                            let mut t = t2[1..perm2[l] as usize - 1].to_vec();
+                            t.push(t2[0]);
+                            t.extend_from_slice(&t2[(perm2[l] as usize)..(1 + num - l)]);
+                            t2 = Vec::new();
+                        } else {  // l è pari
+                            out.push(t[perm2[l] as usize]);  // Genera l'output
+                            t2 = t[1..perm2[l] as usize - 1].to_vec();
+                            t2.push(t[0]);
+                            t2.extend_from_slice(&t[(perm2[l] as usize)..(1 + num - l)]);
+                        }
+                    }
+                }
+
+                // Permutazione finale per l'interleaver di lunghezza 4 (fisso)
+                if 2 * (num / 2) < num {  // num è dispari
+                    out.push(t[3]);
+                    out.push(t[2]);
+                    out.push(t[0]);
+                    out.push(t[1]);
+                } else {  // num è pari
+                    out.push(t2[3]);
+                    out.push(t2[2]);
+                    out.push(t2[0]);
+                    out.push(t2[1]);
+                }
+            }
+            // Resetta t e t2 per continuare con il prossimo blocco
+            t.clear();
+            t2.clear();
+        }
+
+        out
     }
 
-    /// Applica il deinterleaving ai dati
-    pub fn deinterleave(&self, data: Vec<f64>) -> Vec<i32> {
-        mapdint(data.len(), &symbols_to_bits(data), &self.inverse_permutation)
+    pub fn mapdint(ls: usize, ern: Vec<i32>, perm2: Vec<usize>) -> Vec<i32> {
+        let mut out = Vec::new(); // Output inizializzato vuoto
+        let num = perm2.len(); // Lunghezza di perm2
+        let mut parse = ls / num; // Numero di blocchi di dati
+        if parse == 0 {
+            parse = 1; // Imposta almeno un blocco
+        }
+
+        for j in 0..parse {
+            // Estrai il blocco corrente
+            let mut t2 = ern[(num * j)..(num * (j + 1))].to_vec();
+            if t2.iter().sum::<i32>() == t2.len() as i32 {
+                // Se tutti gli elementi in t2 sono 1, aggiungi direttamente a out
+                out.extend_from_slice(&t2);
+            } else {
+                let mut t = Vec::new(); // Inizializza t come vettore vuoto
+
+                for l in 0..num {
+                    if perm2[l] == 1 {
+                        if 2 * (l / 2) < l {
+                            // l è dispari, lavora con t2
+                            out.push(t2[0]); // Genera output
+                            t = t2[1..(1 + num - l)].to_vec(); // Ridimensiona il vettore
+                            t2.clear();
+                        } else {
+                            // l è pari, lavora con t
+                            out.push(t[0]); // Genera output
+                            t2 = t[1..(1 + num - l)].to_vec(); // Ridimensiona il vettore
+                            t.clear();
+                        }
+                    } else if perm2[l] == 2 {
+                        if 2 * (l / 2) < l {
+                            // l è dispari, lavora con t2
+                            out.push(t2[1]); // Genera output
+                            t = vec![t2[0]]
+                                .into_iter()
+                                .chain(t2[2..(1 + num - l)].iter().cloned())
+                                .collect();
+                            t2.clear();
+                        } else {
+                            // l è pari, lavora con t
+                            out.push(t[1]); // Genera output
+                            t2 = vec![t[0]]
+                                .into_iter()
+                                .chain(t[2..(1 + num - l)].iter().cloned())
+                                .collect();
+                            t.clear();
+                        }
+                    } else {
+                        if 2 * (l / 2) < l {
+                            // l è dispari, lavora con t2
+                            out.push(t2[perm2[l] - 1]); // Genera output
+                            t = t2[1..perm2[l] - 1]
+                                .to_vec()
+                                .into_iter()
+                                .chain(vec![t2[0]])
+                                .chain(t2[perm2[l]..(1 + num - l)].iter().cloned())
+                                .collect();
+                            t2.clear();
+                        } else {
+                            // l è pari, lavora con t
+                            out.push(t[perm2[l] - 1]); // Genera output
+                            t2 = t[1..perm2[l] - 1]
+                                .to_vec()
+                                .into_iter()
+                                .chain(vec![t[0]])
+                                .chain(t[perm2[l]..(1 + num - l)].iter().cloned())
+                                .collect();
+                            t.clear();
+                        }
+                    }
+                }
+
+                // Trasposizioni finali per interleaver di lunghezza 4
+                if 2 * (num / 2) < num {
+                    // num dispari
+                    out.push(t[2]);
+                    out.push(t[3]);
+                    out.push(t[1]);
+                    out.push(t[0]);
+                } else {
+                    // num pari
+                    out.push(t2[2]);
+                    out.push(t2[3]);
+                    out.push(t2[1]);
+                    out.push(t2[0]);
+                }
+            }
+            // Resetta t e t2 per il prossimo blocco
+            t2.clear();
+        }
+
+        out
     }
-}
 
-// Implementazione della funzione invperm per calcolare la permutazione inversa
-fn invperm(perm2: &[usize]) -> Vec<usize> {
-    let num = perm2.len();
-    let mut nperm = vec![0; num];
-    let mut invp = vec![0; num];
+    pub fn invperm(perm2: Vec<usize>) -> Vec<usize> {
+        let num = perm2.len();
+        let mut vec: Vec<usize> = (1..=num).collect(); // Crea un vettore [1, 2, ..., num]
+        let mut nperm = Vec::new(); // Output per la permutazione intermedia
 
-    for i in 0..num {
-        let mut vec = (0..num).collect::<Vec<usize>>();
-        let mut vec2 = vec.clone();
+        let mut vec2 = Vec::new(); // Vettore temporaneo vuoto
 
+        // Loop principale per generare la permutazione
         for l in 0..num {
             if perm2[l] == 1 {
                 if 2 * (l / 2) < l {
-                    nperm.push(vec[0]);
-                    vec = vec[1..(num - l + 1)].to_vec();
+                    // l dispari, lavora con `vec`
+                    nperm.push(vec[0]); // Genera output
+                    vec2 = vec[1..(num - l)].to_vec(); // Ridimensiona `vec`
+                    vec.clear();
                 } else {
-                    nperm.push(vec2[0]);
-                    vec2 = vec2[1..(num - l + 1)].to_vec();
+                    // l pari, lavora con `vec2`
+                    nperm.push(vec2[0]); // Genera output
+                    vec = vec2[1..(num - l)].to_vec(); // Ridimensiona `vec2`
+                    vec2.clear();
                 }
             } else if perm2[l] == 2 {
                 if 2 * (l / 2) < l {
-                    nperm.push(vec[1]);
-                    vec = vec.iter().enumerate().filter(|&(j, _)| j != 1).map(|(_, &v)| v).collect();
+                    // l dispari, lavora con `vec`
+                    nperm.push(vec[1]); // Genera output
+                    vec2 = vec.iter().skip(2).cloned().collect(); // Ridimensiona `vec`
+                    vec2.insert(0, vec[0]);
+                    vec.clear();
                 } else {
-                    nperm.push(vec2[1]);
-                    vec2 = vec2.iter().enumerate().filter(|&(j, _)| j != 1).map(|(_, &v)| v).collect();
+                    // l pari, lavora con `vec2`
+                    nperm.push(vec2[1]); // Genera output
+                    vec = vec2.iter().skip(2).cloned().collect(); // Ridimensiona `vec2`
+                    vec.insert(0, vec2[0]);
+                    vec2.clear();
                 }
-            } else if perm2[l] == num - l + 1 {
+            } else if perm2[l] == num - l {
                 if 2 * (l / 2) < l {
-                    nperm.push(vec[perm2[l] - 1]);
-                    vec = vec[1..perm2[l] - 1].iter().cloned().chain(vec[0..1].iter().cloned()).collect();
-
+                    // l dispari, lavora con `vec`
+                    nperm.push(vec[perm2[l] - 1]); // Genera output
+                    vec2 = vec[1..perm2[l] - 1].to_vec();
+                    vec2.insert(0, vec[0]);
+                    vec.clear();
                 } else {
-                    nperm.push(vec2[perm2[l] - 1]);
-                    vec2 = vec2[1..perm2[l] - 1].iter().cloned().chain(vec2[0..1].iter().cloned()).collect();
-
+                    // l pari, lavora con `vec2`
+                    nperm.push(vec2[perm2[l] - 1]); // Genera output
+                    vec = vec2[1..perm2[l] - 1].to_vec();
+                    vec.insert(0, vec2[0]);
+                    vec2.clear();
                 }
             } else {
                 if 2 * (l / 2) < l {
-                    nperm.push(vec[perm2[l] - 1]);
-                    vec = vec[1..perm2[l] - 1]
+                    // l dispari, lavora con `vec`
+                    nperm.push(vec[perm2[l] - 1]); // Genera output
+                    vec2 = vec[1..perm2[l] - 1]
                         .iter()
-                        .map(|&x| x)  // Converte i riferimenti in valori concreti
-                        .chain(vec[perm2[l]..num - l + 1].iter().map(|&x| x))  // Applica la stessa trasformazione qui
+                        .cloned()
+                        .chain(vec.iter().skip(perm2[l]))
                         .collect();
-
+                    vec2.insert(0, vec[0]);
+                    vec.clear();
                 } else {
-                    nperm.push(vec2[perm2[l] - 1]);
-                    vec2 = vec2[1..perm2[l] - 1]
+                    // l pari, lavora con `vec2`
+                    nperm.push(vec2[perm2[l] - 1]); // Genera output
+                    vec = vec2[1..perm2[l] - 1]
                         .iter()
-                        .cloned()  // Clona ogni elemento per ottenere `usize` anziché `&usize`
-                        .chain(vec2[perm2[l]..num - l + 1].iter().cloned())
+                        .cloned()
+                        .chain(vec2.iter().skip(perm2[l]))
                         .collect();
-
+                    vec.insert(0, vec2[0]);
+                    vec2.clear();
                 }
             }
         }
+
+        // Calcolo della permutazione inversa
+        let mut invp = vec![0; num];
         for i in 0..num {
             for j in i..num {
-                if nperm[j] == i {
-                    invp[i] = j - i + 1;
-                    let z = nperm[j];
-                    nperm[j] = nperm[i];
-                    nperm[i] = z;
+                if nperm[j] == i + 1 {
+                    invp[i] = j - i + 1; // Registra la posizione
+                    nperm.swap(i, j); // Scambia gli elementi
+                    break;
                 }
             }
         }
+
+        invp
     }
-    invp
+
+
+
 }
 
-// Implementazione della funzione mapint per l'interleaving
-fn mapint(ls: usize, ern: &[i32], perm2: &[usize]) -> Vec<i32> {
-    let num = perm2.len();
-    let mut out = vec![];
-
-    let parse = if ls / num == 0 { 1 } else { ls / num };
-
-    for j in 0..parse {
-        let mut t2 = ern[(num * (j as usize))..(num * (j as usize + 1))].to_vec();
-        if t2.iter().sum::<i32>() == t2.len() as i32 {
-            out.extend(t2);
-        } else {
-            for l in 0..num {
-                if perm2[l] == 1 {
-                    if 2 * (l / 2) < l {
-                        out.push(t2[0]);
-                        t2 = t2[1..(1 + num - l)].to_vec();
-                    } else {
-                        out.push(t2[0]);
-                        t2 = t2[1..(1 + num - l)].to_vec();
-                    }
-                } else if perm2[l] == 2 {
-                    if 2 * (l / 2) < l {
-                        out.push(t2[1]);
-                        t2 = vec![t2[0]].into_iter()
-                            .chain(t2[2..(1 + num - l)].iter().cloned())  // Clona i riferimenti per ottenere `i32`
-                            .collect();
-
-                    } else {
-                        out.push(t2[1]);
-                        t2 = vec![t2[0]].into_iter()
-                            .chain(t2[2..(1 + num - l)].iter().cloned())  // Clona i riferimenti a `i32`
-                            .collect::<Vec<i32>>();  // Specifica esplicitamente il tipo di raccolta
-
-                    }
-                } else {
-                    if 2 * (l / 2) < l {
-                        out.push(t2[perm2[l] - 1]);
-                        t2 = t2[1..perm2[l] - 1].iter().chain(&t2[0..1]).chain(&t2[perm2[l]..(1 + num - l)]).cloned().collect();
-                    } else {
-                        out.push(t2[perm2[l] - 1]);
-                        t2 = t2[1..perm2[l] - 1].iter().chain(&t2[0..1]).chain(&t2[perm2[l]..(1 + num - l)]).cloned().collect();
-                    }
-                }
-            }
-            out.clear();
-        }
-    }
-    out
-}
-
-// Implementazione della funzione mapdint per il deinterleaving
-fn mapdint(ls: usize, ern: &[i32], perm2: &[usize]) -> Vec<i32> {
-    let num = perm2.len();
-    let mut out = vec![];
-
-    let parse = if ls / num == 0 { 1 } else { ls / num };
-
-    for j in 0..parse {
-        let mut t2 = ern[(num * (j as usize))..(num * (j as usize + 1))].to_vec();
-        if t2.iter().sum::<i32>() == t2.len() as i32 {
-            out.extend(t2);
-        } else {
-            for l in 0..num {
-                if perm2[l] == 1 {
-                    if 2 * (l / 2) < l {
-                        out.push(t2[0]);
-                        t2 = t2[1..(1 + num - l)].to_vec();
-                    } else {
-                        out.push(t2[0]);
-                        t2 = t2[1..(1 + num - l)].to_vec();
-                    }
-                } else if perm2[l] == 2 {
-                    if 2 * (l / 2) < l {
-                        out.push(t2[1]);
-                        t2 = vec![t2[0]].into_iter()
-                            .chain(t2[2..(1 + num - l)].iter().cloned())  // Clona gli elementi durante la creazione dell'iteratore
-                            .collect::<Vec<i32>>();  // Raccogli in `Vec<i32>`
-
-                    } else {
-                        out.push(t2[1]);
-                        t2 = vec![t2[0]]
-                            .into_iter()
-                            .chain(t2[2..(1 + num - l)].iter().cloned())  // Usa `cloned()` per ottenere valori `i32` da `&i32`
-                            .collect::<Vec<i32>>();  // Colleziona in un `Vec<i32>`
-
-                    }
-                } else {
-                    if 2 * (l / 2) < l {
-                        out.push(t2[perm2[l] - 1]);
-                        t2 = t2[1..perm2[l] - 1].iter().chain(&t2[0..1]).chain(&t2[perm2[l]..(1 + num - l)]).cloned().collect();
-                    } else {
-                        out.push(t2[perm2[l] - 1]);
-                        t2 = t2[1..perm2[l] - 1].iter().chain(&t2[0..1]).chain(&t2[perm2[l]..(1 + num - l)]).cloned().collect();
-                    }
-                }
-            }
-            out.clear();
-        }
-    }
-    out
-}

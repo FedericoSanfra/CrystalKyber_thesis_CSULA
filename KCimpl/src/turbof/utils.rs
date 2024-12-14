@@ -1,88 +1,70 @@
-// Importa la libreria std per l'input/output e altre funzionalità di base
-use std::io;
-
-// Definizione dei polinomi per la generazione delle sequenze PN
-const POL1: [[u8; 10]; 24] = [
-    [0, 0, 0, 0, 0, 0, 0, 0, 4, 5],
-    [0, 0, 0, 0, 0, 0, 0, 1, 0, 3],
-    [0, 0, 0, 0, 0, 0, 0, 2, 1, 1],
-    [0, 0, 0, 0, 0, 0, 0, 4, 3, 5],
-    [0, 0, 0, 0, 0, 0, 1, 0, 2, 1],
-    [0, 0, 0, 0, 0, 0, 2, 0, 1, 1],
-    [0, 0, 0, 0, 0, 0, 4, 0, 0, 5],
-    [0, 0, 0, 0, 0, 1, 0, 1, 2, 3],
-    [0, 0, 0, 0, 0, 2, 0, 0, 3, 3],
-    [0, 0, 0, 0, 0, 4, 2, 1, 0, 3],
-    [0, 0, 0, 0, 1, 0, 0, 0, 0, 3],
-    [0, 0, 0, 0, 2, 1, 0, 0, 1, 3],
-    [0, 0, 0, 0, 4, 0, 0, 0, 1, 1],
-    [0, 0, 0, 1, 0, 0, 0, 2, 0, 1],
-    [0, 0, 0, 2, 0, 0, 0, 0, 4, 7],
-    [0, 0, 0, 4, 0, 0, 0, 0, 1, 1],
-    [0, 0, 1, 0, 0, 0, 0, 0, 0, 5],
-    [0, 0, 2, 0, 0, 0, 0, 0, 0, 3],
-    [0, 0, 4, 0, 0, 0, 0, 0, 4, 1],
-    [0, 1, 0, 0, 0, 0, 0, 2, 0, 7],
-    [0, 2, 0, 0, 0, 0, 0, 0, 1, 1],
-    [0, 4, 0, 0, 0, 0, 0, 1, 0, 7],
-    [1, 0, 0, 0, 0, 0, 0, 0, 4, 7],
-    [2, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-];
-
-// Definizione degli altri polinomi (POL2 e POL3) simili a POL1 omessi per brevità
-
-// Funzione principale per generare la sequenza PN
 pub fn generate_pn_sequence(ndeg: usize, ngen: usize) -> Vec<i32> {
-    let pol = match ngen {
-        1 => &POL1[ndeg - 5],
-        // Aggiungere le altre scelte per polinomi
-        _ => panic!("Invalid generator selection."),
-    };
+    // Coefficienti dei polinomi incorporati in Octale
+    let pol1: Vec<Vec<i32>> = vec![ /* ... */ ];  // Usa la stessa definizione di pol1
+    let pol2: Vec<Vec<i32>> = vec![ /* ... */ ];  // Usa la stessa definizione di pol2
+    let pol3: Vec<Vec<i32>> = vec![ /* ... */ ];  // Usa la stessa definizione di pol3
 
-    let mut coef = pol.to_vec();
-    let mut polcn = Vec::new();
-    let dig = [2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10];
+    let dig = vec![2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10];
 
-    for n1 in 0..dig[ndeg - 5] {
-        let val = coef[10 - n1 - 1];
-        let mut polc = vec![0, 0, 0];
-        match val {
-            0 => {}
-            1 => polc = vec![0, 0, 1 + 3 * n1],
-            2 => polc = vec![0, 2 + 3 * n1, 0],
-            3 => polc = vec![0, 2 + 3 * n1, 1 + 3 * n1],
-            4 => polc = vec![3 + 3 * n1, 0, 0],
-            5 => polc = vec![3 + 3 * n1, 0, 1 + 3 * n1],
-            6 => polc = vec![3 + 3 * n1, 2 + 3 * n1, 0],
-            _ => polc = vec![3 + 3 * n1, 2 + 3 * n1, 1 + 3 * n1],
-        }
-        polcn.extend_from_slice(&polc);
+    let mut coef = vec![];
+    if ngen == 1 {
+        coef = pol1[ndeg - 5].clone();
+    } else if ngen == 2 {
+        coef = pol2[ndeg - 5].clone();
+    } else {
+        coef = pol3[ndeg - 5].clone();
     }
 
-    polcn.reverse();
+    let mut polcn: Vec<i32> = Vec::new();
 
-    let mut out = vec![-1; ndeg + 1];
-    out[ndeg] = 1;
+    // Loop principale
+    for n1 in 0..dig[ndeg - 5] {
+        let val = coef[9 - n1];
+        let polc = match val {
+            0 => vec![0, 0, 0],
+            1 => vec![0, 0, 1 + 3 * (n1 as i32)],
+            2 => vec![0, 2 + 3 * (n1 as i32), 0],
+            3 => vec![0, 2 + 3 * (n1 as i32), 1 + 3 * (n1 as i32)],
+            4 => vec![3 + 3 * (n1 as i32), 0, 0],
+            5 => vec![3 + 3 * (n1 as i32), 0, 1 + 3 * (n1 as i32)],
+            6 => vec![3 + 3 * (n1 as i32), 2 + 3 * (n1 as i32), 0],
+            _ => vec![3 + 3 * (n1 as i32), 2 + 3 * (n1 as i32), 1 + 3 * (n1 as i32)],
+        };
+        polcn.extend(polc);
+    }
 
+    let polcn = polcn.into_iter().rev().collect::<Vec<i32>>(); // inverti l'ordine
+
+    // Inizializza LFSR
+    let mut out: Vec<i32> = vec![1; ndeg];
+    out.push(-1);
+
+    // Genera la sequenza
     for j1 in 0..(2_usize.pow(ndeg as u32) - 1) {
         out.push(1);
         for j2 in 0..(ndeg + 1) {
-            if polcn[ndeg + 2 - j2] != 0 {
-                let z = polcn[ndeg + 2 - j2];
-                out[j1 + ndeg + 1] *= out[j1 + ndeg + 1 - z];
+            if polcn[ndeg + 1 - j2] != 0 {
+                let z = polcn[ndeg + 1 - j2];
+                // Correzione dell'operazione LFSR
+                out[j1 + ndeg + 1] *= out[j1 + ndeg + 1 - z as usize];
             }
         }
     }
 
-    out[ndeg + 2..(2_usize.pow(ndeg as u32) + ndeg)].to_vec()
+    out.split_off(ndeg + 1)
 }
 
-/// Converte un vettore di bit (0 e 1) in un vettore di simboli (1.0 e -1.0)
-pub fn bits_to_symbols(bits: &[i32]) -> Vec<f64> {
-    bits.iter().map(|&bit| if bit == 1 { 1.0 } else { -1.0 }).collect()
-}
+extern crate rand;
+use rand::Rng;
 
-/// Converte un vettore di simboli (1.0 e -1.0) in un vettore di bit (0 e 1)
-pub fn symbols_to_bits(symbols: Vec<f64>) -> Vec<i32> {
-    symbols.iter().map(|&symbol| if symbol == 1.0 { 1 } else { 0 }).collect()
+pub fn generate_random_binary_input(n: usize) -> Vec<i32> {
+    let mut rng = rand::thread_rng();
+    let mut binary_input = Vec::with_capacity(n);
+
+    for _ in 0..n {
+        let random_bit = rng.gen_range(0..2); // genera 0 o 1
+        binary_input.push(random_bit);
+    }
+
+    binary_input
 }
