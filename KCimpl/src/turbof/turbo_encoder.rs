@@ -27,13 +27,17 @@ impl TurboEncoder{
     pub fn encode(&mut self) -> (Vec<i32>,Vec<i32>,Vec<i32>,Vec<i32>) {
 
         let ls=self.input.len();
-        let (u, sys1)=self.rsc_1.encode(self.input.clone(),0); //upper rsc con estensione bit sistematico
+        let (u, y1)=self.rsc_1.encode(self.input.clone(),0); //upper rsc con estensione bit sistematico
+        //println!(" in encoder sys1 {:?}", y1);
+        //println!("ls {:?} u {:?} perm {:?}", ls, u.clone(), self.perm.clone());
+        let out=Interleaver::mapint(ls, u.clone() , self.perm.clone());
+        //println!("out {:?}", out);
 
-        let out=Interleaver::mapint(ls, u.clone(), self.perm.clone());
+        let (_, y2)=self.rsc_2.encode(out.clone(),1); //lower rsc
 
-        let (_, sys2)=self.rsc_2.encode(out.clone(),1); //lower rsc
+        //println!("in encoder sys2 {:?}", y2); //il sistematico è u che si ripete
 
-        (u, out, sys1, sys2)
+        (u, out, y1, y2)
 
     }
 }

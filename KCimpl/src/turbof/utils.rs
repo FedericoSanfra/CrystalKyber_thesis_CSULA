@@ -89,19 +89,19 @@ pub fn alpha1(ao: &Vec<f64>, gp: &Vec<f64>, gsys: &Vec<f64>, s: usize) -> f64 {
 
     // Determinazione dei predecessori dello stato e dei relativi indici di transizione
     match s {
-        1 => {
+        0 => {
             sm[0] = 1; x[0] = 1;
             sm[1] = 3; x[1] = 2;
         },
-        2 => {
+        1 => {
             sm[0] = 3; x[0] = 1;
             sm[1] = 1; x[1] = 2;
         },
-        3 => {
+        2 => {
             sm[0] = 4; x[0] = 2;
             sm[1] = 2; x[1] = 1;
         },
-        4 => {
+        3 => {
             sm[0] = 2; x[0] = 2;
             sm[1] = 4; x[1] = 1;
         },
@@ -164,4 +164,11 @@ pub fn beta1( //funzione di backward recursion
 
     // Restituzione della matrice B
     b
+}
+
+
+
+pub fn generate_binary_vector(n: usize) -> Vec<i32> {
+    let mut rng = rand::thread_rng();
+    (0..n).map(|_| rng.gen_range(0..2)).collect()
 }

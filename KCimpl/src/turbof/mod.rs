@@ -1,4 +1,4 @@
-mod turbo_simulation;
+pub mod turbo_simulation;
 mod utils;
 mod interleaver;
 mod rsc_encoder;
