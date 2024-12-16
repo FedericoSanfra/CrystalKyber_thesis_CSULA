@@ -172,3 +172,65 @@ pub fn generate_binary_vector(n: usize) -> Vec<i32> {
     let mut rng = rand::thread_rng();
     (0..n).map(|_| rng.gen_range(0..2)).collect()
 }
+
+/// Convert a vector of transpositions to a permutation vector for use as an interleaver.
+pub fn transpositions_to_permutations(transpositions: Vec<i32>) -> Vec<usize> {
+    let n = transpositions.len();
+    let mut permutation = (0..n).collect::<Vec<_>>(); // Start with identity permutation
+
+    for i in 0..n {
+        permutation.swap(i, transpositions[i] as usize); // Apply each transposition
+    }
+
+    permutation
+}
+
+/// Applica una permutazione a un vettore di input.
+///
+/// # Parametri:
+/// - `input`: Vettore di input da permutare.
+/// - `permutations`: Vettore di permutazioni.
+///
+/// # Ritorno:
+/// - Vettore permutato.
+pub fn apply_permutation<T: Clone+ Default>(vector: Vec<T>, interleaver: Vec<usize>) -> Vec<T> {
+    let mut interleaved: Vec<T> = vec![vector[0].clone(); vector.len()];
+    for (i, &index) in interleaver.iter().enumerate() {
+        interleaved[i] = vector[index].clone();
+    }
+    interleaved
+}
+// pub fn apply_permutation<T: Clone>(input: Vec<T>, permutations: Vec<usize>) -> Vec<T> {
+//     let mut output = vec![input[0].clone(); input.len()]; // Vettore di output inizializzato
+//     for (i, &p) in permutations.iter().enumerate() {
+//         output[p - 1] = input[i].clone(); // Permutazione: posiziona `input[i]` nell'indice `p - 1`
+//     }
+//     output
+// }
+
+/// Ripristina il vettore originale a partire da un vettore permutato.
+///
+/// # Parametri:
+/// - `permuted`: Vettore permutato.
+/// - `permutations`: Vettore di permutazioni usato per permutare l'originale.
+///
+/// # Ritorno:
+/// - Vettore originale.
+
+pub fn reverse_permutation<T: Clone>(vector: Vec<T>, interleaver: Vec<usize>) -> Vec<T> {
+    let mut deinterleaved = vec![vector[0].clone(); vector.len()];
+    for (i, &index) in interleaver.iter().enumerate() {
+        deinterleaved[index] = vector[i].clone();
+    }
+    deinterleaved
+}
+
+// pub fn reverse_permutation<T: Clone>(permuted: Vec<T>, permutations: Vec<usize>) -> Vec<T> {
+//     let mut original = vec![permuted[0].clone(); permuted.len()]; // Vettore originale inizializzato
+//     for (i, &p) in permutations.iter().enumerate() {
+//         original[i] = permuted[p - 1].clone(); // Ripristina il valore originale
+//     }
+//     original
+// }
+
+

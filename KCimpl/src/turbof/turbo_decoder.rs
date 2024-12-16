@@ -1,5 +1,7 @@
 use crate::turbof::siso_decoder::SISODecoder;
 use crate::turbof::interleaver::Interleaver;
+use crate::turbof::utils::{apply_permutation, reverse_permutation, transpositions_to_permutations};
+
 pub struct TurboDecoder {
     siso1: SISODecoder,
     siso2: SISODecoder,
@@ -97,7 +99,8 @@ impl TurboDecoder{
 
             // Chiamata alla funzione mapint
             let out = Interleaver::mapint_f64(self.ls, ern.clone(), perm2.clone());
-
+            //let perm_new=transpositions_to_permutations(perm.clone());
+            //let out=apply_permutation(ern.clone(),perm_new);
             // Costruzione di gamsys2 con out e aggiungendo 0, 0
             self.gam_sys2.extend_from_slice(&out);  // Aggiunge i valori di out in gamsys2
             self.gam_sys2.push(0.0);  // Aggiunge 0
@@ -169,9 +172,12 @@ impl TurboDecoder{
             // ern is set to ext1
             let mut ern = ext1.clone();  // Copia di ext1
 
+
+
             // Calling the deinterleaving routine:
             let mut out = Interleaver::mapdint_f64(self.ls, ern, perm2);  // La funzione mapdint è già implementata e funziona correttamente
-
+            //let new_perm=transpositions_to_permutations(perm.clone());
+            //let mut out=reverse_permutation(ern.clone(), new_perm);
             // permuted ext1 is stored in pext1
             let pext1 = out.clone();  // Permuted ext1
 
@@ -182,8 +188,8 @@ impl TurboDecoder{
             let gamsys2 = self.gam_syso2.iter().zip(out.iter()).map(|(x, y)| x + *y).collect::<Vec<_>>();
 
             // Cleaning up
-            // ern.clear();
-            // out.clear();
+            ern=Vec::new();
+            out=Vec::new();
 
 
         }

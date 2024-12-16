@@ -6,3 +6,4 @@ mod bsc_channel;
 mod turbo_encoder;
 mod turbo_decoder;
 mod siso_decoder;
+pub mod mapints;

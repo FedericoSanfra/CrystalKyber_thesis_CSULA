@@ -1,5 +1,7 @@
 use crate::turbof::rsc_encoder::RSCEncoder;
 use crate::turbof::interleaver::Interleaver;
+use crate::turbof::mapints::mapint;
+use crate::turbof::utils::{transpositions_to_permutations, apply_permutation, reverse_permutation};
 pub struct TurboEncoder{
     input: Vec<i32>,
     perm: Vec<i32>,
@@ -30,7 +32,11 @@ impl TurboEncoder{
         let (u, y1)=self.rsc_1.encode(self.input.clone(),0); //upper rsc con estensione bit sistematico
         //println!(" in encoder sys1 {:?}", y1);
         //println!("ls {:?} u {:?} perm {:?}", ls, u.clone(), self.perm.clone());
-        let out=Interleaver::mapint(ls, u.clone() , self.perm.clone());
+        let out=mapint(ls, u.clone() , self.perm.clone());
+        // let perms=transpositions_to_permutations(self.perm.clone());
+        // let out=apply_permutation(u.clone(),perms);
+
+        println!("out in encode {:?}", out);
         //println!("out {:?}", out);
 
         let (_, y2)=self.rsc_2.encode(out.clone(),1); //lower rsc
