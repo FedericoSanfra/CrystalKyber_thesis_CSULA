@@ -1,5 +1,5 @@
 pub mod turbo_simulation;
-mod utils;
+pub mod utils;
 mod interleaver;
 mod rsc_encoder;
 mod bsc_channel;
