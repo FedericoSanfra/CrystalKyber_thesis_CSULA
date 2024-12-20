@@ -86,7 +86,7 @@ impl SISODecoder{
         ///BETA RECURSION
 
         // Beta recursion
-        let parse = f64::floor(((ls + 2) / 4) as f64) - f64::ceil(((17 + 3) / 4) as f64); // Calcola il numero di blocchi
+        let parse = f64::floor(((ls + 2) / 4) as f64) - f64::ceil((17  / 4) as f64); // Calcola il numero di blocchi
         //17+3 è giusto??
         let mut bet = vec![vec![0.0; ls+2]; 4]; // Inizializza il vettore bet
 
@@ -94,10 +94,12 @@ impl SISODecoder{
         for i in 1..=parse as usize {
             let idx=i-1;
             let d = 20;
-            let gp1 = &gamry11[(4 * idx)..(4 * idx + 20)];
-            let gp2 = &gamry12[(4 * idx)..(4 * idx + 20)];
-            let gsys1 = &gamsys1[(4 * idx)..(4 * idx + 20)];
-            let gsys2 = &gamsys2[(4 * idx)..(4 * idx + 20)];
+            let start_range=4*(i-1)+1;
+            let end_range=4*(i-1)+21;
+            let gp1 = &gamry11[start_range-1..=end_range-1];
+            let gp2 = &gamry12[start_range-1..=end_range-1];
+            let gsys1 = &gamsys1[start_range-1..=end_range-1];
+            let gsys2 = &gamsys2[start_range-1..=end_range-1];
             let gsys=[gsys1, gsys2];
             let gp=[gp1, gp2];
 

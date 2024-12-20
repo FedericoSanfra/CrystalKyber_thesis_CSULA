@@ -56,11 +56,14 @@ impl TurboSimulation{
 
         // Initialize the uniform number generator and extend pn_seq to reach simulation length
         let mut utot: Vec<i32> = pn_seq.clone();
-        for i in 0..ls2 {
+        utot.insert(0,i32::MIN);
+        for i in 1..=ls2 {
             let rand_val: f64 = rand::random();
+
             let value = if rand_val <= 0.5 { 1 } else { -1 };
-            utot.push(value);
+            utot.insert(i+2_usize.pow(ndeg)-1,value);
         }
+        utot.remove(0); //rimuovo il valore aggiunto all'inizio minimo
         //da usare se uso la funzione originale del prof
 
         // Initialize the AWGN generator for the loop

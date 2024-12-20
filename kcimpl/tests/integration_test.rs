@@ -60,7 +60,7 @@ mod integration_tests {
         let block_size = 20000; // Blocchi di 10 bit
         let simulation_length = 32000; // Simulazione per un totale di 10 bit
         let error_probability = 0.05; // Probabilità di errore 10%
-        let iterations = 7; // Numero di iterazioni di decodifica
+        let iterations = 15; // Numero di iterazioni di decodifica
         let rate = 1; // Rate 1/3
 
         // Creazione dell'oggetto TurboSimulation

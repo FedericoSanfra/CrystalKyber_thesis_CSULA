@@ -15,8 +15,8 @@ impl TurboEncoder{
         perm:Vec<i32>
     )->Self{
 
-        let rsc_1=RSCEncoder::new();
-        let rsc_2=RSCEncoder::new();
+        let rsc_1=RSCEncoder::new(input.len());
+        let rsc_2=RSCEncoder::new(input.len());
 
         Self{
             input,
@@ -29,7 +29,7 @@ impl TurboEncoder{
     pub fn encode(&mut self) -> (Vec<i32>,Vec<i32>,Vec<i32>,Vec<i32>) {
 
         let ls=self.input.len();
-        let (u, y1)=self.rsc_1.encode(self.input.clone(),0); //upper rsc con estensione bit sistematico
+        let (u, y1)=self.rsc_1.encode1(self.input.clone()); //upper rsc con estensione bit sistematico
         //println!(" in encoder sys1 {:?}", y1);
         //println!("ls {:?} u {:?} perm {:?}", ls, u.clone(), self.perm.clone());
         let out=mapint(ls, u.clone() , self.perm.clone()); //from mapints
@@ -39,7 +39,7 @@ impl TurboEncoder{
         //println!("out in encode {:?}", out);
         //println!("out {:?}", out);
 
-        let (_, y2)=self.rsc_2.encode(out.clone(),1); //lower rsc
+        let (_, y2)=self.rsc_2.encode2(out.clone()); //lower rsc
 
         //println!("in encoder sys2 {:?}", y2); //il sistematico è u che si ripete
 

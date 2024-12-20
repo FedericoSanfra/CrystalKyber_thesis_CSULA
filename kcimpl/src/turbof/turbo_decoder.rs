@@ -50,6 +50,16 @@ impl TurboDecoder{
     pub fn decode(&mut self, niter: usize, perm: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> Vec<Vec<f64>>{
         let mut err=err.clone();
         // Calculating statistics for each received bit stream
+
+        for j in 0..self.ls+2{
+            let value:f64=rand::random();
+            if value<=self.p1{
+                self.u2[j]=-1*self.u[j]
+            } else{
+                self.u2[j]=self.u[j]
+            }
+        }
+
         for i in 0..self.ls + 2 {
             self.gam_sys1[i] = 0.0;
             self.gam_sys2[i] = 0.0;
@@ -57,19 +67,19 @@ impl TurboDecoder{
             // For rate 1/3, systematic bit is transmitted
             if self.r13 == 1 {
                 if self.u2[i] == 1 {
-                    self.gam_sys2[i] -= (1.0 - self.p1).ln() - self.p1.ln();
+                    self.gam_sys2[i] -= ((1.0-self.p1)/(self.p1)).ln();
                 } else if self.u2[i] == -1 {
-                    self.gam_sys2[i] += (1.0 - self.p1).ln() - self.p1.ln();
+                    self.gam_sys2[i] += ((1.0-self.p1)/(self.p1)).ln();
                 }
             }
 
             // For upper RSC (y1), using the received values
             self.gam_ry11[i] = 0.0;
-            self.gam_ry12[i] = -self.ry1[i] as f64 * ((1.0 - self.p1).ln() - self.p1.ln());
+            self.gam_ry12[i] = -self.ry1[i] as f64 * ((1.0-self.p1)/(self.p1)).ln();
 
             // For lower RSC (y2), using the received values
             self.gam_ry21[i] = 0.0;
-            self.gam_ry22[i] = -self.ry2[i] as f64 * ((1.0 - self.p1).ln() - self.p1.ln());
+            self.gam_ry22[i] = -self.ry2[i] as f64 * ((1.0-self.p1)/(self.p1)).ln();
         }
 
         //println!("gamsys prima decode {:?}", &self.gam_sys2);
@@ -99,17 +109,18 @@ impl TurboDecoder{
             let mut ern = dapp1.clone();  // ern è il risultato della differenza tra le righe di app1
 
             // Chiamata alla funzione mapint
-            let out = mapints::mapint_f64(self.ls, ern.clone(), perm2.clone());
+            let mut out = mapints::mapint_f64(self.ls, ern.clone(), perm2.clone());
             //let perm_new=transpositions_to_permutations(perm.clone());
             //let out=apply_permutation(ern.clone(),perm_new);
             // Costruzione di gamsys2 con out e aggiungendo 0, 0
-            self.gam_sys2.extend_from_slice(&out);  // Aggiunge i valori di out in gamsys2
-            self.gam_sys2.push(0.0);  // Aggiunge 0
-            self.gam_sys2.push(0.0);  // Aggiunge 0
+            out.push(0.0);
+            out.push(0.0);
+            self.gam_sys2=out; // Aggiunge i valori di out in gamsys2
+
 
             // Pulizia di out e ern
-            let out: Vec<f64> = vec![0.0;out.len()];  // Resetta out
-            let ern: Vec<f64> = vec![0.0; ern.len()];  // Resetta ern
+            let out: Vec<f64> = vec![0.0;self.ls+2];  // Resetta out
+            let ern: Vec<f64> = vec![0.0; self.ls];  // Resetta ern
             ///LOWER RSC SISODECODER
             ///
             // Chiamata alla funzione `sisoRSCmem2` che ritorna app2, dec2 e count2
@@ -118,7 +129,7 @@ impl TurboDecoder{
 
             let mut dapp2 = vec![0.0; self.ls];
             for i in 0..self.ls {
-                dapp2[i] = app1[1][i] - app1[0][i];
+                dapp2[i] = app2[1][i] - app2[0][i];
             }
             // Calcolo della differenza tra le due righe di app2
             // let dapp2: Vec<f64> = app2[1..self.ls]
@@ -129,7 +140,7 @@ impl TurboDecoder{
 
             //app2 è un Vec<Vec<f64>>
             err[iteration][k1] = count2 as f64/ self.ls as f64;
-
+            //sostituisco i valori
             // Generating the extrinsic information:
             // This is done by treating the output metrics as being composed
             // of two parts. One part is due to an effective systematic bit whose
@@ -186,8 +197,8 @@ impl TurboDecoder{
             out.push(0.0);//estensione di out
 
             // Extrinsic information is added to the soft metric for the systematic bit.
-            let gamsys2 = self.gam_syso2.iter().zip(out.iter()).map(|(x, y)| x + *y).collect::<Vec<_>>();
-
+            self.gam_sys2 = self.gam_syso2.iter().zip(out.iter()).map(|(x, y)| x + *y).collect::<Vec<_>>();
+            // sommo i singoli elementi
             // Cleaning up
             ern=Vec::new();
             out=Vec::new();
