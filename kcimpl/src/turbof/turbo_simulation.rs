@@ -45,10 +45,10 @@ impl TurboSimulation{
         let ngen=1; //iniizializzazione arbitraria dal codice
 
         // Generate the PN sequence
-        //let mut pn_seq = generate_pn_sequence(ndeg as usize, ngen);
+        let mut pn_seq = generate_pn_sequence(ndeg as usize, ngen);
 
         //uso mia funzione per generare input binario casuale
-       let mut pn_seq=generate_binary_vector(self.simulation_length);
+       //let mut pn_seq=generate_binary_vector(self.simulation_length);
        //let mut pn_seq=vec![1,0,0,1,0,1,1,0,1,1];
 
         println!("pn seq {:?}", pn_seq);
@@ -56,11 +56,11 @@ impl TurboSimulation{
 
         // Initialize the uniform number generator and extend pn_seq to reach simulation length
         let mut utot: Vec<i32> = pn_seq.clone();
-        // for i in 0..ls2 {
-        //     let rand_val: f64 = rand::random();
-        //     let value = if rand_val <= 0.5 { 1 } else { -1 };
-        //     utot.push(value);
-        // }
+        for i in 0..ls2 {
+            let rand_val: f64 = rand::random();
+            let value = if rand_val <= 0.5 { 1 } else { -1 };
+            utot.push(value);
+        }
         //da usare se uso la funzione originale del prof
 
         // Initialize the AWGN generator for the loop
@@ -97,7 +97,8 @@ impl TurboSimulation{
     fn simulate_process(&self, vec_block: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> Vec<Vec<f64>>{
         //dovrei mettere bits to levels qui e non fare nulla dopo, inoltre capire bene utot inizializzato cosa fa
         // Placeholder for the actual decoding process using MPTST2B and error calculation
-        let mut encoder =TurboEncoder::new(vec_block, self.perm.clone());
+        let vec_levels=utils::bits_to_levels(vec_block);
+        let mut encoder =TurboEncoder::new(vec_levels, self.perm.clone());
         let (u,up, sys1, sys2)=encoder.encode();
 
         //println!("after encode u {:?} up {:?} sys1 {:?} sys2 {:?}", u.len(), up.len(), sys1.len(), sys2.len());
@@ -108,24 +109,24 @@ impl TurboSimulation{
 
         //println!("noise length: {:?}", n.len());
 
-        let u_levels=utils::bits_to_levels(u);
+        //let u_levels=utils::bits_to_levels(u);
         //println!("u levels {:?}", u_levels.len());
         //println!("sys 2 normale {:?}", sys2.len());
-        let sys1_levels=utils::bits_to_levels(sys1);
-        let sys2_levels=utils::bits_to_levels(sys2);
+        //let sys1_levels=utils::bits_to_levels(sys1);
+        //let sys2_levels=utils::bits_to_levels(sys2);
 
         //println!("sys2 levels {:?}", sys2_levels);
         // Primo bit sistematico con rumore
-        let rs1: Vec<i32> = u_levels.iter().zip(&n[0..ls + 2]).map(|(&ui, &ni)| ui * ni).collect();
+        let rs1: Vec<i32> = u.iter().zip(&n[0..ls + 2]).map(|(&ui, &ni)| ui * ni).collect();
 
         // Upper RSC con rumore
-        let ry1: Vec<i32> = sys1_levels.iter()
+        let ry1: Vec<i32> = sys1.iter()
             .zip(&n[ls + 2..2 * ls + 4])
             .map(|(&yi, &ni)| yi * ni)
             .collect();
 
         // Lower RSC con rumore
-        let ry2: Vec<i32> = sys2_levels.iter()
+        let ry2: Vec<i32> = sys2.iter()
             .zip(&n[2 * ls + 4..3 * ls + 6])
             .map(|(&yi, &ni)| yi * ni)
             .collect();
@@ -136,7 +137,7 @@ impl TurboSimulation{
         //up è interleaved, u2 è dopo la perturbazione ovvero rs1
         //provo a usare i livelli
 
-        let mut turbo_decoder =TurboDecoder::new(u_levels.clone(), rs1, ry1, ry2, self.error_probability, 1, ls, up); //r13 vale 1 rate 1/3
+        let mut turbo_decoder =TurboDecoder::new(u.clone(), rs1, ry1, ry2, self.error_probability, 1, ls, up); //r13 vale 1 rate 1/3
 
         turbo_decoder.decode(self.iterations, self.perm.clone(), err.clone(), k1)
 

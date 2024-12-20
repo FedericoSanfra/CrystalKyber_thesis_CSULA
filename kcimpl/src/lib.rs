@@ -1,7 +1,7 @@
-//! This is documentation for the `KCimpl` crate.
+//! This is documentation for the `kcimpl` crate.
 //!
 //! # Introduction
-//! `KCimpl` is an implementation of Crystals-Kyber , a post-quantum
+//! `kcimpl` is an implementation of Crystals-Kyber , a post-quantum
 //! candidate submitted to NIST for standardization.
 //!
 //! This crate provides public-key encryption (`PKE`) and key encapsulation (`KEM`).

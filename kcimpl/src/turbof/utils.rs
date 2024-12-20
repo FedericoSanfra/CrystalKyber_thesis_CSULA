@@ -1,48 +1,126 @@
 pub fn generate_pn_sequence(ndeg: usize, ngen: usize) -> Vec<i32> {
     // Coefficienti dei polinomi incorporati in Octale
-    let pol1: Vec<Vec<i32>> = vec![ /* ... */ ];  // Usa la stessa definizione di pol1
-    let pol2: Vec<Vec<i32>> = vec![ /* ... */ ];  // Usa la stessa definizione di pol2
-    let pol3: Vec<Vec<i32>> = vec![ /* ... */ ];  // Usa la stessa definizione di pol3
+    let pol1 = vec![[0,0,0,0,0,0,0,0,4,5],
+[0,0,0,0,0,0,0,1,0,3],
+[0,0,0,0,0,0,0,2,1,1],
+[0,0,0,0,0,0,0,4,3,5],
+[0,0,0,0,0,0,1,0,2,1],
+[0,0,0,0,0,0,2,0,1,1],
+[0,0,0,0,0,0,4,0,0,5],
+[0,0,0,0,0,1,0,1,2,3],
+[0,0,0,0,0,2,0,0,3,3],
+[0,0,0,0,0,4,2,1,0,3],
+[0,0,0,0,1,0,0,0,0,3],
+[0,0,0,0,2,1,0,0,1,3],
+[0,0,0,0,4,0,0,0,1,1],
+[0,0,0,1,0,0,0,2,0,1],
+[0,0,0,2,0,0,0,0,4,7],
+[0,0,0,4,0,0,0,0,1,1],
+[0,0,1,0,0,0,0,0,0,5],
+[0,0,2,0,0,0,0,0,0,3],
+[0,0,4,0,0,0,0,0,4,1],
+[0,1,0,0,0,0,0,2,0,7],
+[0,2,0,0,0,0,0,0,1,1],
+[0,4,0,0,0,0,0,1,0,7],
+[1,0,0,0,0,0,0,0,4,7],
+[2,0,0,0,0,0,0,0,1,1]];  // Usa la stessa definizione di pol1
+
+    let pol2= vec![[0,0,0,0,0,0,0,0,7,5],
+[0,0,0,0,0,0,0,1,4,7],
+[0,0,0,0,0,0,0,2,1,7],
+[0,0,0,0,0,0,0,4,5,3],
+[0,0,0,0,0,0,1,0,5,5],
+[0,0,0,0,0,0,2,0,3,3],
+[0,0,0,0,0,0,4,0,5,5],
+[0,0,0,0,0,1,1,0,1,5],
+[0,0,0,0,0,2,1,1,0,3],
+[0,0,0,0,0,4,4,1,0,3],
+[0,0,0,0,1,0,2,0,4,3],
+[0,0,0,0,3,0,7,1,0,7],
+[0,0,0,0,4,0,0,0,1,7],
+[0,0,0,1,7,0,3,6,0,1],
+[0,0,0,2,0,2,0,4,7,1],
+[0,0,0,6,0,0,0,0,3,1],
+[0,0,1,0,0,4,0,2,0,5],
+[0,0,2,0,0,0,1,0,4,3],
+[0,0,4,0,0,0,0,0,6,3],
+[0,1,2,5,2,4,5,6,6,1],
+[0,2,0,0,0,0,0,0,1,7],
+[0,4,3,0,2,1,6,4,7,3],
+[1,2,5,0,0,2,5,7,5,7],
+[2,1,0,4,2,1,0,4,3,1]];  // Usa la stessa definizione di pol2
+
+
+    let pol3= vec![ [0,0,0,0,0,0,0,0,6,7],
+[0,0,0,0,0,0,0,1,5,5],
+[0,0,0,0,0,0,0,2,3,5],
+[0,0,0,0,0,0,0,7,0,3],
+[0,0,0,0,0,0,1,5,5,3],
+[0,0,0,0,0,0,2,0,4,7],
+[0,0,0,0,0,0,5,0,0,7],
+[0,0,0,0,0,1,1,2,7,1],
+[0,0,0,0,0,2,2,2,0,3],
+[0,0,0,0,0,4,0,1,2,3],
+[0,0,0,0,1,1,0,0,1,3],
+[0,0,0,0,2,0,1,7,3,5],
+[0,0,0,0,6,0,0,0,1,3],
+[0,0,0,1,1,1,5,7,0,1],
+[0,0,0,3,6,1,0,3,5,3],
+[0,0,0,4,4,4,2,2,3,5],
+[0,0,1,1,1,1,1,1,1,5],
+[0,0,2,2,2,2,2,2,2,3],
+[0,0,4,1,2,2,4,4,4,5],
+[0,1,1,3,7,6,3,0,6,3],
+[0,2,0,0,0,1,4,7,3,1],
+[0,4,7,3,1,6,7,5,4,5],
+[1,0,3,7,5,3,0,2,4,1],
+[2,0,2,0,0,0,6,0,3,1 ]];  // Usa la stessa definizione di pol3
 
     let dig = vec![2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10];
 
     let mut coef = vec![];
     if ngen == 1 {
-        coef = pol1[ndeg - 5].clone();
+        coef = Vec::from(pol1[ndeg - 5].clone());
     } else if ngen == 2 {
-        coef = pol2[ndeg - 5].clone();
+        coef = Vec::from(pol2[ndeg - 5].clone());
     } else {
-        coef = pol3[ndeg - 5].clone();
+        coef = Vec::from(pol3[ndeg - 5].clone());
     }
 
     let mut polcn: Vec<i32> = Vec::new();
 
     // Loop principale
-    for n1 in 0..dig[ndeg - 5] {
-        let val = coef[9 - n1];
-        let polc = match val {
+    for n1 in 1..=dig[ndeg - 5] {
+        let val = coef[10 - n1];
+        let mut polc = match val {
             0 => vec![0, 0, 0],
-            1 => vec![0, 0, 1 + 3 * (n1 as i32)],
-            2 => vec![0, 2 + 3 * (n1 as i32), 0],
-            3 => vec![0, 2 + 3 * (n1 as i32), 1 + 3 * (n1 as i32)],
-            4 => vec![3 + 3 * (n1 as i32), 0, 0],
-            5 => vec![3 + 3 * (n1 as i32), 0, 1 + 3 * (n1 as i32)],
-            6 => vec![3 + 3 * (n1 as i32), 2 + 3 * (n1 as i32), 0],
-            _ => vec![3 + 3 * (n1 as i32), 2 + 3 * (n1 as i32), 1 + 3 * (n1 as i32)],
+            1 => vec![0, 0, 1 + 3 * (n1 as i32 -1)],
+            2 => vec![0, 2 + 3 * (n1 as i32 -1), 0],
+            3 => vec![0, 2 + 3 * (n1 as i32 -1 ), 1 + 3 * (n1 as i32 -1)],
+            4 => vec![3 + 3 * (n1 as i32-1), 0, 0],
+            5 => vec![3 + 3 * (n1 as i32-1), 0, 1 + 3 * (n1 as i32 -1)],
+            6 => vec![3 + 3 * (n1 as i32-1), 2 + 3 * (n1 as i32 -1), 0],
+            _ => vec![3 + 3 * (n1 as i32-1), 2 + 3 * (n1 as i32 -1), 1 + 3 * (n1 as i32 -1)],
         };
-        polcn.extend(polc);
+        let tmp=polcn.clone();
+        polc.extend(tmp);
+        polcn=polc.clone(); //ricorsivo
     }
 
     let polcn = polcn.into_iter().rev().collect::<Vec<i32>>(); // inverti l'ordine
 
     // Inizializza LFSR
-    let mut out: Vec<i32> = vec![1; ndeg];
-    out.push(-1);
+    let mut out: Vec<i32> = Vec::new();
+    out.insert(0,-1); //elemento mock
+    for n1 in 1..=ndeg{
+        out.push(1); //parto dall'elemento 1 anzichè 0
+    }
+    out.push(-1); //in posizione ndeg+1 fuori dal for cycle
 
     // Genera la sequenza
-    for j1 in 0..(2_usize.pow(ndeg as u32) - 1) {
-        out.push(1);
-        for j2 in 0..(ndeg + 1) {
+    for j1 in 1..=(2_usize.pow(ndeg as u32) - 1) {
+        out.insert(j1+ndeg+1,1);
+        for j2 in 1..=(ndeg + 1) {
             if polcn[ndeg + 1 - j2] != 0 {
                 let z = polcn[ndeg + 1 - j2];
                 // Correzione dell'operazione LFSR
@@ -51,7 +129,10 @@ pub fn generate_pn_sequence(ndeg: usize, ngen: usize) -> Vec<i32> {
         }
     }
 
-    out.split_off(ndeg + 1)
+    //out.remove(0); //rimuovo l'elemento di mock
+    let start_range=ndeg+2;
+    let end_range=2_usize.pow(ndeg as u32) +ndeg;
+    out[start_range..=end_range].to_vec()
 }
 
 extern crate rand;
