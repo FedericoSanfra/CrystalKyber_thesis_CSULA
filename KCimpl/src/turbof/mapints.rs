@@ -9,19 +9,21 @@ pub fn check_assign(start_range: usize, end_range: usize)->bool{
     }
 }
 
-pub fn invperm(perm2: Vec<i32>)->Vec<i32>{
+pub fn invperm(mut perm2: Vec<i32>) ->Vec<i32>{
 
     let num=perm2.len();
     let mut vec:Vec<i32>=Vec::new();
+    perm2.insert(0,-1);
    // vec.insert(0,-1);
     for i in 1..=num{
-        vec[i-1]= i as i32;
+        vec.push(i as i32);
     }
     let mut vec2:Vec<i32>=Vec::new();
 
     let mut nperm:Vec<i32>=Vec::new();
     let mut invp:Vec<i32>=Vec::new();
     invp.insert(0,-1);
+    //println!(" invp inizio {:?}", &invp);
     nperm.insert(0,-1);
     //aggiungo un elemento per poi toglierlo alla fine
 
@@ -46,7 +48,7 @@ pub fn invperm(perm2: Vec<i32>)->Vec<i32>{
             }
         } else if perm2[l]==2 {
             if (2 * f64::floor(l as f64 / 2.0) as usize) < l{
-                nperm.push(vec2[1]);
+                nperm.push(vec[1]);
                 vec2.push(vec[0]);
                 let start_range=3;
                 let end_range=num+1-l;
@@ -84,6 +86,7 @@ pub fn invperm(perm2: Vec<i32>)->Vec<i32>{
                 if check_assign(start_range,end_range){
                     vec=vec2[start_range-1..=end_range-1].to_vec();
                 }
+                vec.push(vec2[0]);
                 vec2=Vec::new();
             }
         } else {
@@ -124,8 +127,11 @@ pub fn invperm(perm2: Vec<i32>)->Vec<i32>{
 
     for i in 1..=num{
         for j in i..=num{
+
             if nperm[j]==i as i32{
-                invp[i]= (j - i + 1) as i32;
+                //println!(" invp {:?}", &invp);
+                //println!(" nperm {:?}", &nperm);
+                invp.insert(i,(j - i + 1) as i32);
                 let z=nperm[j]; //swap elements
                 nperm[j]=nperm[i];
                 nperm[i]=z;
@@ -219,7 +225,7 @@ pub fn mapint(ls: usize, mut ern: Vec<i32>, mut perm2: Vec<i32>) ->Vec<i32>{
                         } else{
                             let mut start_range=2;
                             let mut end_range=perm2[l] as usize-1;
-                            println!("check {:?}", check_assign(start_range,end_range));
+                            //println!("check {:?}", check_assign(start_range,end_range));
                             if check_assign(start_range,end_range)  {
                                 t=t2[start_range-1..=end_range-1].to_vec();
                             }
@@ -262,6 +268,132 @@ pub fn mapint(ls: usize, mut ern: Vec<i32>, mut perm2: Vec<i32>) ->Vec<i32>{
 
 }
 
+
+pub fn mapint_f64(ls: usize, mut ern: Vec<f64>, mut perm2: Vec<i32>) ->Vec<f64>{
+    let mut out:Vec<f64>=Vec::new();
+
+    let num=perm2.len();
+    out.insert(0,-1.0); //elemento mock
+    perm2.insert(0,-1); //elemento mock
+    ern.insert(0,-1.0);
+
+    let mut t:Vec<f64>=Vec::new();
+    let mut t2:Vec<f64>=Vec::new(); //devo inserire un elemento 0?
+    let mut parse=f64::floor(ls as f64  / num as f64) as usize;
+    //number of data blocks
+
+    if parse==0{
+        parse=1;
+    }
+
+    //////////
+
+
+    for j in 1..=parse{
+        t2=ern[(num*(j-1)+1)..=num*j].to_vec();
+        //insert?
+        if t2.iter().sum::<f64>()==t2.len() as f64{
+            out.extend(t2);
+        } else{
+
+            for l in 1..=num{ //diminuisco tutti gli indici che accedono solo a t e t2
+                if perm2[l]==1{
+                    if (2 * f64::floor(l as f64 / 2.0) as usize) < l { //l is odd, t2
+                        out.push(t2[0]);
+                        let start_range=2;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            t=t2[start_range-1..=end_range-1].to_vec();
+                        }
+                        t2=Vec::new();
+                    } else { //l is even, t
+                        out.push(t[0]);
+                        let start_range=2;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            t2=t[start_range-1..=end_range-1].to_vec();
+                        }
+                        t=Vec::new();
+
+                    }
+                } else if perm2[l]==2{
+                    if (2 * f64::floor(l as f64 / 2.0) as usize) < l {
+                        out.push(t2[1]);
+                        t.push(t2[0]);
+                        let start_range=3;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t2[start_range-1..=end_range-1].to_vec();
+                            t.extend(tmp);
+                        }
+                        t2=Vec::new();
+                    } else{ //l is even, work with t
+                        out.push(t[1]);
+                        t2.push(t[0]);
+                        let start_range=3;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t[start_range-1..=end_range-1].to_vec();
+                            t2.extend(tmp);
+                        }
+                        t=Vec::new();
+
+                    }
+                } else{
+                    if (2 * f64::floor(l as f64 / 2.0) as usize) < l { //l is odd, t2
+                        out.push(t2[perm2[l] as usize -1]);
+                        if (perm2[l]+1 )> (1 + num - l) as i32 {
+                            let start_range=2;
+                            let end_range=perm2[l] as usize-1;
+                            if check_assign(start_range,end_range){
+                                t=t2[start_range-1..=end_range-1].to_vec();
+                            }
+                            t.push(t2[0]);
+                        } else{
+                            let mut start_range=2;
+                            let mut end_range=perm2[l] as usize-1;
+                           // println!("check {:?}", check_assign(start_range,end_range));
+                            if check_assign(start_range,end_range)  {
+                                t=t2[start_range-1..=end_range-1].to_vec();
+                            }
+                            t.push(t2[0]);
+                            start_range=perm2[l] as usize+1;
+                            end_range=1+num -l;
+                            if check_assign(start_range,end_range){
+                                let tmp=t2[start_range-1..=end_range-1].to_vec();
+                                t.extend(tmp);
+                            }
+                        }
+                        t2=Vec::new();
+
+                    }else{ //l is even, work with t
+                        out.push(t[perm2[l] as usize -1]);
+                        let mut start_range=2;
+                        let mut end_range= perm2[l] as usize -1;
+                        if check_assign(start_range,end_range){
+                            t2=t[start_range-1..=end_range-1].to_vec();
+                        }
+                        t2.push(t[0]);
+                        start_range=perm2[l] as usize+1;
+                        end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t[start_range-1..=end_range-1].to_vec();
+                            t2.extend(tmp);
+                        }
+                        t=Vec::new();
+
+                    }
+
+                }
+            }
+        }
+
+    }
+    out.remove(0);
+    //rimuovo elemento in più aggiunto per indici
+    out
+
+}
 
 pub fn mapdint(ls: usize, mut ern: Vec<i32>, mut perm2: Vec<i32>) ->Vec<i32>{
     let mut out=Vec::new();
@@ -332,11 +464,26 @@ pub fn mapdint(ls: usize, mut ern: Vec<i32>, mut perm2: Vec<i32>) ->Vec<i32>{
                         let mut start_range=2;
                         let mut end_range=perm2[l] as usize-1;
                         if check_assign(start_range,end_range){
+                            t=t2[start_range-1..=end_range-1].to_vec();
+                        }
+                        t.push(t2[0]);
+                        start_range=perm2[l] as usize+1;
+                        end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t2[start_range-1..=end_range-1].to_vec();
+                            t.extend(tmp);
+                        }
+                        t2=Vec::new();
+                    }else{
+                        out.push(t[perm2[l] as usize -1 ]);
+                        let start_range=2;
+                        let end_range=perm2[l] as usize-1;
+                        if check_assign(start_range,end_range){
                             t2=t[start_range-1..=end_range-1].to_vec();
                         }
                         t2.push(t[0]);
-                        start_range=perm2[l] as usize+1;
-                        end_range=1+num-l;
+                        let start_range=perm2[l] as usize+1;
+                        let end_range=1+num-l;
                         if check_assign(start_range,end_range){
                             let tmp=t[start_range-1..=end_range-1].to_vec();
                             t2.extend(tmp);
@@ -356,7 +503,116 @@ pub fn mapdint(ls: usize, mut ern: Vec<i32>, mut perm2: Vec<i32>) ->Vec<i32>{
     out
 
 }
-/// versione mia
+
+pub fn mapdint_f64(ls: usize, mut ern: Vec<f64>, mut perm2: Vec<i32>) ->Vec<f64>{
+    let mut out:Vec<f64>=Vec::new();
+
+    let num=perm2.len();
+    out.insert(0,-1.0); //elemento mock
+    perm2.insert(0,-1); //elemento mock
+    ern.insert(0,-1.0);
+
+    let mut t:Vec<f64>=Vec::new();
+    let mut t2:Vec<f64>=Vec::new(); //devo inserire un elemento 0?
+    let mut parse=f64::floor(ls as f64  / num as f64) as usize;
+    //number of data blocks
+    if parse==0{
+        parse=1;
+    }
+
+    for j in 1..=parse{
+        t2=ern[(num*(j-1)+1)..=(num*j)].to_vec();
+        if t2.iter().sum::<f64>()==t2.len() as f64{
+            out.extend(t2);
+        } else{
+
+            for l in 1..=num{
+                if perm2[l]==1{
+                    if (2 * f64::floor(l as f64 / 2.0) as usize) < l{
+                        out.push(t2[0]); //indici decrementati di 1 su t e t2
+                        let start_range=2;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            t=t2[start_range-1..=end_range-1].to_vec();
+                        }
+                        t2=Vec::new();
+                    }else{
+                        out.push(t[0]);
+                        let start_range=2;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            t2=t[start_range-1..=end_range-1].to_vec();
+                        }
+                        t=Vec::new();
+                    }
+                } else if perm2[l]==2 {
+                    if (2 * f64::floor(l as f64 / 2.0) as usize) < l{
+                        out.push(t2[1]);
+                        t.push(t2[0]);
+                        let start_range=3;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t2[start_range-1..=end_range-1].to_vec();
+                            t.extend(tmp);
+                        }
+                        t2=Vec::new();
+                    } else{ //l is even
+                        out.push(t[1]);
+                        t2.push(t[0]);
+                        let start_range=3;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t[start_range-1..=end_range-1].to_vec();
+                            t2.extend(tmp);
+                        }
+                        t=Vec::new();
+                    }
+                } else{
+                    if (2 * f64::floor(l as f64 / 2.0) as usize) < l{
+                        out.push(t2[perm2[l] as usize -1]);
+                        let mut start_range=2;
+                        let mut end_range=perm2[l] as usize-1;
+                        if check_assign(start_range,end_range){
+                            t=t2[start_range-1..=end_range-1].to_vec();
+                        }
+                        t.push(t2[0]);
+                        start_range=perm2[l] as usize+1;
+                        end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t2[start_range-1..=end_range-1].to_vec();
+                            t.extend(tmp);
+                        }
+                        t2=Vec::new();
+                    } else{
+                        out.push(t[perm2[l] as usize -1 ]);
+                        let start_range=2;
+                        let end_range=perm2[l] as usize-1;
+                        if check_assign(start_range,end_range){
+                            t2=t[start_range-1..=end_range-1].to_vec();
+                        }
+                        t2.push(t[0]);
+                        let start_range=perm2[l] as usize+1;
+                        let end_range=1+num-l;
+                        if check_assign(start_range,end_range){
+                            let tmp=t[start_range-1..=end_range-1].to_vec();
+                            t2.extend(tmp);
+                        }
+                        t=Vec::new();
+                    }
+                }
+            }
+            t=Vec::new();
+            t2=Vec::new();
+        }
+    }
+
+
+
+    out.remove(0);
+    out
+
+}
+// versione mia
 // pub fn mapint_old(ls: usize, ern: Vec<i32>, perm2: Vec<i32>)-> Vec<i32>{ //input trasposto da 0 per rust
 //
 //     let mut out=Vec::new();
@@ -515,8 +771,8 @@ pub fn mapdint(ls: usize, mut ern: Vec<i32>, mut perm2: Vec<i32>) ->Vec<i32>{
 // }
 
 
-///versione AI veci32
-///
+// versione AI veci32
+//
 // pub fn mapint(ls: usize, ern: Vec<i32>, perm2: Vec<i32>) -> Vec<i32> {
 //     let mut out = Vec::new();
 //     let num = perm2.len();

@@ -1,5 +1,6 @@
 use crate::turbof::siso_decoder::SISODecoder;
 use crate::turbof::interleaver::Interleaver;
+use crate::turbof::mapints;
 use crate::turbof::utils::{apply_permutation, reverse_permutation, transpositions_to_permutations};
 
 pub struct TurboDecoder {
@@ -98,7 +99,7 @@ impl TurboDecoder{
             let mut ern = dapp1.clone();  // ern è il risultato della differenza tra le righe di app1
 
             // Chiamata alla funzione mapint
-            let out = Interleaver::mapint_f64(self.ls, ern.clone(), perm2.clone());
+            let out = mapints::mapint_f64(self.ls, ern.clone(), perm2.clone());
             //let perm_new=transpositions_to_permutations(perm.clone());
             //let out=apply_permutation(ern.clone(),perm_new);
             // Costruzione di gamsys2 con out e aggiungendo 0, 0
@@ -159,7 +160,7 @@ impl TurboDecoder{
 
             // Now we need the inverse of the permutation used above.
             // The transposition vector of the FSP associated with this permutation is loaded:
-            let invp = Interleaver::invperm(perm.clone());  // La funzione invperm è già implementata separatamente
+            let invp = mapints::invperm(perm.clone());  // La funzione invperm è già implementata separatamente
 
             // perm2 is set to the inverse permutation
             let mut perm2 = invp.clone();
@@ -175,7 +176,7 @@ impl TurboDecoder{
 
 
             // Calling the deinterleaving routine:
-            let mut out = Interleaver::mapdint_f64(self.ls, ern, perm2);  // La funzione mapdint è già implementata e funziona correttamente
+            let mut out = mapints::mapdint_f64(self.ls, ern, perm2);  // La funzione mapdint è già implementata e funziona correttamente
             //let new_perm=transpositions_to_permutations(perm.clone());
             //let mut out=reverse_permutation(ern.clone(), new_perm);
             // permuted ext1 is stored in pext1

@@ -32,11 +32,11 @@ impl TurboEncoder{
         let (u, y1)=self.rsc_1.encode(self.input.clone(),0); //upper rsc con estensione bit sistematico
         //println!(" in encoder sys1 {:?}", y1);
         //println!("ls {:?} u {:?} perm {:?}", ls, u.clone(), self.perm.clone());
-        let out=mapint(ls, u.clone() , self.perm.clone());
+        let out=mapint(ls, u.clone() , self.perm.clone()); //from mapints
         // let perms=transpositions_to_permutations(self.perm.clone());
         // let out=apply_permutation(u.clone(),perms);
 
-        println!("out in encode {:?}", out);
+        //println!("out in encode {:?}", out);
         //println!("out {:?}", out);
 
         let (_, y2)=self.rsc_2.encode(out.clone(),1); //lower rsc
