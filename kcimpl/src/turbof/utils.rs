@@ -171,32 +171,31 @@ pub fn alpha1(ao: &Vec<f64>, gp: &Vec<f64>, gsys: &Vec<f64>, s: usize) -> f64 {
     // Determinazione dei predecessori dello stato e dei relativi indici di transizione
     match s {
         0 => {
-            sm[0] = 1; x[0] = 1;
-            sm[1] = 3; x[1] = 2;
-        },
-        1 => {
-            sm[0] = 3; x[0] = 1;
-            sm[1] = 1; x[1] = 2;
-        },
-        2 => {
-            sm[0] = 4; x[0] = 2;
+            sm[0] = 0; x[0] = 0;
             sm[1] = 2; x[1] = 1;
         },
+        1 => {
+            sm[0] = 2; x[0] = 0;
+            sm[1] = 0; x[1] = 1;
+        },
+        2 => {
+            sm[0] = 3; x[0] = 1;
+            sm[1] = 1; x[1] = 0;
+        },
         3 => {
-            sm[0] = 2; x[0] = 2;
-            sm[1] = 4; x[1] = 1;
+            sm[0] = 1; x[0] = 1;
+            sm[1] = 3; x[1] = 0; //valori decrementati da matlab
         },
         _ => println!("Invalid state S: {} in alpha 1", s),
     }
 
     // Calcolo del termine di normalizzazione log-cosh
-    let a1 = ao[sm[0] - 1] + gp[x[0] - 1] + gsys[0];
-    let a2 = ao[sm[1] - 1] + gp[x[1] - 1] + gsys[1];
-    let cosh_term = 0.5 * (a1 - a2);
-    let log_cosh = cosh_term.cosh().ln();
+
+    let an=0.5*(ao[sm[0]]+gp[x[0]]+gsys[0]+ao[sm[1]]+gp[x[1]]) +gsys[1]+((0.5*(ao[sm[0]]+gp[x[0]]+gsys[0]-ao[sm[1]]-gp[x[1]]-gsys[1])).cosh().ln());
+
 
     // Calcolo del valore di alpha aggiornato
-    0.5 * (a1 + a2) + log_cosh
+    an
 }
 
 
@@ -222,16 +221,19 @@ pub fn beta1( //funzione di backward recursion
             };
 
             // Calcolo di B(S, D-l)
-            let a1 = bo[sp[0]] + gp[x[0]][d - l - 1] + gsys[0][d - l - 1];
-            let a2 = bo[sp[1]] + gp[x[1]][d - l - 1] + gsys[1][d - l - 1];
-            let cosh_term = 0.5 * (a1 - a2);
-            let log_cosh = cosh_term.cosh().ln();
-
-            b[s][d - l - 1] = 0.5 * (a1 + a2) + log_cosh;
-        }
+            // let a1 = bo[sp[0]] + gp[x[0]][d - l - 1] + gsys[0][d - l - 1];
+            // let a2 = bo[sp[1]] + gp[x[1]][d - l - 1] + gsys[1][d - l - 1];
+            // let cosh_term = 0.5 * (a1 - a2);
+            // let log_cosh = cosh_term.cosh().ln();
+            //
+            // b[s][d - l + 1 -1] = 0.5 * (a1 + a2) + log_cosh;
+            // println!("s {:?} d-l+2 {:?}",s, d-l);
+            // println!("gp {:?}", &gp[0].len());
+            b[s][d-l-1]=0.5*(bo[sp[0]]+gp[x[0]][d-l]+gsys[0][d-l]+bo[sp[1]]+gp[x[1]][d-l]+gsys[1][d-l])+((0.5*(bo[sp[0]]+gp[x[0]][d-l]+gsys[0][d-l]-bo[sp[1]]-gp[x[1]][d-l]-gsys[1][d-l])).cosh()).ln();
+        } //con d=20, d-l indice corrispondente a matlab
 
         // Inizializzazione per la prossima iterazione
-        bo = b.iter().map(|row| row[d - l - 1]).collect();
+        bo = b.iter().map(|row| row[d - l -1]).collect();
     }
 
     // Normalizzazione della matrice B
@@ -241,7 +243,7 @@ pub fn beta1( //funzione di backward recursion
             *val -= first_row[i];
         }
     }
-    b[0] = vec![0.0; d];
+    b[0] = vec![0.0; d]; //clear of the first row
 
     // Restituzione della matrice B
     b

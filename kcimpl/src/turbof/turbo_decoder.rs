@@ -50,15 +50,15 @@ impl TurboDecoder{
     pub fn decode(&mut self, niter: usize, perm: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> Vec<Vec<f64>>{
         let mut err=err.clone();
         // Calculating statistics for each received bit stream
-
-        for j in 0..self.ls+2{
-            let value:f64=rand::random();
-            if value<=self.p1{
-                self.u2[j]=-1*self.u[j]
-            } else{
-                self.u2[j]=self.u[j]
-            }
-        }
+        //tolta anche su matlab da capire meglio?
+        // for j in 0..self.ls+2{
+        //     let value:f64=rand::random();
+        //     if value<=self.p1{
+        //         self.u2[j]=-1*self.u[j]
+        //     } else{
+        //         self.u2[j]=self.u[j]
+        //     }
+        // }
 
         for i in 0..self.ls + 2 {
             self.gam_sys1[i] = 0.0;
@@ -72,6 +72,7 @@ impl TurboDecoder{
                     self.gam_sys2[i] += ((1.0-self.p1)/(self.p1)).ln();
                 }
             }
+            //println!("gam_sys2"); //istogramma di ry12 prima e dopo il siso
 
             // For upper RSC (y1), using the received values
             self.gam_ry11[i] = 0.0;
@@ -92,16 +93,27 @@ impl TurboDecoder{
 
             //println!("gamsys2 fuori decode {:?}", &self.gam_sys2);
             // Chiamata alla funzione sisoRSCmem2, che restituisce (app1, dec1, count1)
-            let (app1, _dec1, count1) = self.siso1.decode(self.ls, self.u.clone(), &self.gam_ry11, &self.gam_ry12, &self.gam_sys1, &self.gam_sys2);
 
+            //println!("gamry12 PRIMA SISO: {:?}", self.gam_ry12);
+            let (app1, _dec1, count1) = self.siso1.decode(self.ls, self.u.clone(), &self.gam_ry11, &self.gam_ry12, &self.gam_sys1, &self.gam_sys2);
+            //println!("app1 DOPO : {:?}", &app1);
             // Calcolo della differenza tra la seconda e la prima riga di app1
             let mut dapp1 = vec![0.0; self.ls];
             for i in 0..self.ls {
                 dapp1[i] = app1[1][i] - app1[0][i];
             }
+            // Calcolare la somma dei valori assoluti
+            let sum: f64 = dapp1.iter().map(|&x| x.abs()).sum();
 
+            // Calcolare la media
+            let average = sum / dapp1.len() as f64;
+            println!("average iterazione {:?} media {:?}", iteration, average);
+
+           // println!("dapp1 dopo siso {:?}", dapp1);
+           // println!("dapp1 {:?}", dapp1);
             // Calcolo dell'errore per questa iterazione
             err[iteration][k1] = count1 as f64/ self.ls as f64;
+            println!("count1 {:?}", count1);
 
             //PREPARATION FOR NEXT SECTION 2 SISO DECODER
             // Inizializzazione di gamsys2 e ern
@@ -127,10 +139,13 @@ impl TurboDecoder{
 
             let (app2, dec2, count2) = self.siso2.decode(self.ls, self.up.clone(), &self.gam_ry21, &self.gam_ry22, &self.gam_sys1, &self.gam_sys2);
 
+            println!(" app2 0 {:?}", &app2[0][0..50]);
+            println!(" app2 1 {:?}", &app2[1][0..50]);
             let mut dapp2 = vec![0.0; self.ls];
             for i in 0..self.ls {
                 dapp2[i] = app2[1][i] - app2[0][i];
             }
+            println!("dapp2 dopo {:?}", dapp2[0]);
             // Calcolo della differenza tra le due righe di app2
             // let dapp2: Vec<f64> = app2[1..self.ls]
             //     .iter()
@@ -140,6 +155,7 @@ impl TurboDecoder{
 
             //app2 è un Vec<Vec<f64>>
             err[iteration][k1] = count2 as f64/ self.ls as f64;
+            println!("count2 {:?}", count2);
             //sostituisco i valori
             // Generating the extrinsic information:
             // This is done by treating the output metrics as being composed
@@ -152,6 +168,7 @@ impl TurboDecoder{
                 .zip(self.gam_sys2.iter())
                 .map(|(&x, &y)| x - y)
                 .collect();
+            //println!("ext 1 -> {:?}", ext1);
 
             // Estimating the variance of the extrinsic information:
             let variance: f64 = ext1.iter()
@@ -160,6 +177,7 @@ impl TurboDecoder{
 
             // Standard deviation
             let std_deviation = variance.sqrt();
+            println!("std deviation {:?} iterazione {:?} blocco k1 {:?}",std_deviation, iteration, k1);
 
             // Store the result for testing (not needed, used for testing)
            // std[iteration][k1] = std_deviation;

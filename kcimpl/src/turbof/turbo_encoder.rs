@@ -43,6 +43,7 @@ impl TurboEncoder{
 
         //println!("in encoder sys2 {:?}", y2); //il sistematico è u che si ripete
 
+       // print!("y1 {:?}", y1);
         (u, out, y1, y2)
 
     }

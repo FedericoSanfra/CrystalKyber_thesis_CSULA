@@ -15,19 +15,21 @@ impl SISODecoder{
         &self,
         ls: usize,
         u: Vec<i32>,
-        gamry11: &[f64],
+        gamry11: &[f64], //in realta sono gamry1 e gamry 2 a seconda del siso se primo o secondo
         gamry12: &[f64],
         gamsys1: &[f64],
         gamsys2: &[f64],
     ) -> (Vec<Vec<f64>>, Vec<i32>, i32){
 
         ///ALPHA RECURSION
+        //println!("ls {:?}", ls+2);
         let mut alf = vec![vec![0.0; ls+2]; 4];
         let mut ao = vec![0.0, -100.0, -100.0, -100.0]; // Inizializza alpha al passo zero.
+        let mut an = vec![0.0; 4];
 
         // Loop principale per aggiornare alpha fino al passo ls.
         for i in 0..ls {
-            let mut an = vec![0.0; 4];
+
             let gp = vec![gamry11[i], gamry12[i]];
            // //println!("gamsys2 {:?}", gamsys2);
             let gsys = vec![gamsys1[i], gamsys2[i]];
@@ -38,7 +40,7 @@ impl SISODecoder{
             }
 
             // Normalizzazione: importa solo la dimensione relativa.
-            for j in 1..4 { //an(i+1) in matlab
+            for j in 1..=3 { //an(i+1) in matlab
                 an[j] -= an[0];
             }
             an[0] = 0.0;
@@ -53,7 +55,7 @@ impl SISODecoder{
 
         // Terminazione del trellis.
         for i in 0..2 {
-            let mut an = vec![0.0; 4];
+            //let mut an = vec![0.0; 4];
             let gp = vec![gamry11[ls + i], gamry12[ls + i]];
             let gsys = vec![gamsys1[ls + i], gamsys2[ls + i]];
 
@@ -86,10 +88,10 @@ impl SISODecoder{
         ///BETA RECURSION
 
         // Beta recursion
-        let parse = f64::floor(((ls + 2) / 4) as f64) - f64::ceil((17  / 4) as f64); // Calcola il numero di blocchi
+        let parse = f64::floor(((ls + 2) / 4) as f64) - f64::ceil(((17 +3 ) / 4) as f64); // Calcola il numero di blocchi
         //17+3 è giusto??
         let mut bet = vec![vec![0.0; ls+2]; 4]; // Inizializza il vettore bet
-
+        let mut b:Vec<Vec<f64>>;
         // Ciclo principale per calcolare i betas con il loop di parse
         for i in 1..=parse as usize {
             let idx=i-1;
@@ -104,7 +106,7 @@ impl SISODecoder{
             let gp=[gp1, gp2];
 
             let mut bo = vec![0.0, 0.0, 0.0, 0.0]; // inizializzazione dei betas
-            let b= beta1(gp, gsys, d, bo);
+            b= beta1(gp, gsys, d, bo);
 
             // Assegna i betas calcolati
 
@@ -114,23 +116,26 @@ impl SISODecoder{
             // Ciclo per copiare i valori dalla matrice B a bet (equivalente alla slicing)
             for row in 0..4 {
                 for col in start_col..end_col {
-                    bet[row][col] = b[row][col - start_col]; // Copia da B a bet
+                    bet[row][col] = b[row][col - start_col];
+                    //println!("row {:?} col {:?} col-startcol {:?}", row, col, col-start_col);
+                    // Copia da B a bet
                 }
             }
         }
 
         // Gestione del caso per il resto dei betas
+
         let d2 = (ls + 2 - parse as usize * 4) - 1; // Calcola l'ultima iterazione di beta
         let mut bo = vec![0.0, -100.0, -100.0, -100.0]; // Stato terminale
         let gp1 = &gamry11[(4 * parse as usize)..(ls + 2)];
         let gp2 = &gamry12[(4 * parse as usize)..(ls + 2)];
         let gsys1 = &gamsys1[(4 * parse as usize)..(ls + 2)];
         let gsys2 = &gamsys2[(4 * parse as usize)..(ls + 2)];
-        let gsys=[gamsys1, gamsys2];
-        let gp=[gamry11, gamry12];
+        let mut gsys =[gsys1, gsys2]; //correzione??
+        let mut gp =[gp1, gp2]; //correzione?
         //println!("gp {:?}", gp);
 
-        let b= beta1(gp, gsys, d2, bo);
+        let mut b = beta1(gp, gsys, d2, bo);
 
         //println!(" bet matrix {:?}", bet);
         //println!(" b matrix {:?}", b);
@@ -141,6 +146,10 @@ impl SISODecoder{
                 bet[i][j] = b[i][j - 4 * parse as usize];
             }
         }
+
+        b=Vec::new(); //clear
+        gp=[gamry11, gamry12]; //ora sono mutable (?)
+        gsys=[gamsys1, gamsys2];
 
 
 

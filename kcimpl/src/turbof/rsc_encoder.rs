@@ -6,9 +6,10 @@ pub struct RSCEncoder{
 impl RSCEncoder{
     pub fn new(ls: usize)->Self{
 
-        let mut q=vec![0;ls+2];
-        q.push(1);
-        q.push(1); // stati inizializzazione
+        let mut q=vec![0;ls+4];
+        q[0]=1;
+        q[1]=1;
+        // stati inizializzazione
         Self{
             input: Vec::new(),
             q,
