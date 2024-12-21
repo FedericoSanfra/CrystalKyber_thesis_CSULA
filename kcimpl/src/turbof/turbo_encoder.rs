@@ -1,5 +1,5 @@
 use crate::turbof::rsc_encoder::RSCEncoder;
-use crate::turbof::interleaver::Interleaver;
+
 use crate::turbof::mapints::mapint;
 use crate::turbof::utils::{transpositions_to_permutations, apply_permutation, reverse_permutation};
 pub struct TurboEncoder{

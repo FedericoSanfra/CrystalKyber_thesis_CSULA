@@ -1,5 +1,4 @@
 use crate::turbof::siso_decoder::SISODecoder;
-use crate::turbof::interleaver::Interleaver;
 use crate::turbof::mapints;
 use crate::turbof::utils::{apply_permutation, reverse_permutation, transpositions_to_permutations};
 
@@ -50,15 +49,15 @@ impl TurboDecoder{
     pub fn decode(&mut self, niter: usize, perm: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> Vec<Vec<f64>>{
         let mut err=err.clone();
         // Calculating statistics for each received bit stream
-        //tolta anche su matlab da capire meglio?
-        // for j in 0..self.ls+2{
-        //     let value:f64=rand::random();
-        //     if value<=self.p1{
-        //         self.u2[j]=-1*self.u[j]
-        //     } else{
-        //         self.u2[j]=self.u[j]
-        //     }
-        // }
+        //chiarire meglio operazione
+        for j in 0..self.ls+2{
+            let value:f64=rand::random();
+            if value<=self.p1{
+                self.u2[j]=-1*self.u[j]
+            } else{
+                self.u2[j]=self.u[j]
+            }
+        }
 
         for i in 0..self.ls + 2 {
             self.gam_sys1[i] = 0.0;
@@ -139,13 +138,13 @@ impl TurboDecoder{
 
             let (app2, dec2, count2) = self.siso2.decode(self.ls, self.up.clone(), &self.gam_ry21, &self.gam_ry22, &self.gam_sys1, &self.gam_sys2);
 
-            println!(" app2 0 {:?}", &app2[0][0..50]);
-            println!(" app2 1 {:?}", &app2[1][0..50]);
+            //println!(" app2 0 {:?}", &app2[0][0..50]);
+            //println!(" app2 1 {:?}", &app2[1][0..50]);
             let mut dapp2 = vec![0.0; self.ls];
             for i in 0..self.ls {
                 dapp2[i] = app2[1][i] - app2[0][i];
             }
-            println!("dapp2 dopo {:?}", dapp2[0]);
+            //println!("dapp2 dopo {:?}", dapp2[0]);
             // Calcolo della differenza tra le due righe di app2
             // let dapp2: Vec<f64> = app2[1..self.ls]
             //     .iter()
@@ -155,7 +154,7 @@ impl TurboDecoder{
 
             //app2 è un Vec<Vec<f64>>
             err[iteration][k1] = count2 as f64/ self.ls as f64;
-            println!("count2 {:?}", count2);
+            //println!("count2 {:?}", count2);
             //sostituisco i valori
             // Generating the extrinsic information:
             // This is done by treating the output metrics as being composed
