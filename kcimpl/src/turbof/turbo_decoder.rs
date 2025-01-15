@@ -46,8 +46,9 @@ impl TurboDecoder{
         }
     }
 
-    pub fn decode(&mut self, niter: usize, perm: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> Vec<Vec<f64>>{
+    pub fn decode(&mut self, niter: usize, perm: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> (Vec<Vec<f64>>, i32){
         let mut err=err.clone();
+        let mut count_error:i32=0;
         // Calculating statistics for each received bit stream
         //chiarire meglio operazione
         for j in 0..self.ls+2{
@@ -112,7 +113,7 @@ impl TurboDecoder{
            // println!("dapp1 {:?}", dapp1);
             // Calcolo dell'errore per questa iterazione
             err[iteration][k1] = count1 as f64/ self.ls as f64;
-            println!("count1 {:?}", count1);
+            //println!("count1 {:?}", count1);
 
             //PREPARATION FOR NEXT SECTION 2 SISO DECODER
             // Inizializzazione di gamsys2 e ern
@@ -154,7 +155,8 @@ impl TurboDecoder{
 
             //app2 è un Vec<Vec<f64>>
             err[iteration][k1] = count2 as f64/ self.ls as f64;
-            //println!("count2 {:?}", count2);
+            println!("count2 {:?}", count2);
+            count_error=count2;
             //sostituisco i valori
             // Generating the extrinsic information:
             // This is done by treating the output metrics as being composed
@@ -222,7 +224,7 @@ impl TurboDecoder{
 
 
         }
-        err
+        (err, count_error)
 
     }
 }
