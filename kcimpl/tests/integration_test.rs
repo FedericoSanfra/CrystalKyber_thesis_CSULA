@@ -81,12 +81,17 @@ mod integration_tests {
 
     #[test]
     fn test_turbo_simulation_dyn(){
-        let simulation_length=64000;
-        let block_size=12800;
-        let error_prob=0.1;
+        let simulation_length=512000;
+        let block_size=6400;
+        let mut error_prob =0.1;
 
-        let (bit_err,block_err)=turbo_simulation_dynamic_length(6400,block_size, simulation_length,error_prob, 12, 1);
-        println!("bit err {:?} total length {:?} block err {:?}", bit_err, simulation_length, block_err);
+        for mut i in 0..2{ //faccio la prima metà
+            error_prob=0.1+i as f64/1000.0;
+            let (bit_err,block_err)=turbo_simulation_dynamic_length(6400,block_size, simulation_length,error_prob, 8, 1);
+            println!("bit err {:?} total length {:?} block err {:?}", bit_err, simulation_length, block_err);
+            i += 1;
+        }
+
 
     }
     fn turbo_simulation_dynamic_length(interleaver_length: i32, block_size: usize, simulation_length: usize, error_probability: f64, iterations: usize, rate: usize)-> (f64, f64) {
