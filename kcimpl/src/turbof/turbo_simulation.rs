@@ -87,8 +87,8 @@ impl TurboSimulation{
             }
             total_error += err_res[self.iterations-1][k1];
         }
-        println!("numero blocchi con errore: {:?}", p_block_error);
-        println!("numero errori bit {:?}", count_error_tot);
+        // println!("numero blocchi con errore: {:?}", p_block_error);
+        // println!("numero errori bit {:?}", count_error_tot);
         p_block_error=p_block_error/m as f64;
 
         // Calculate the average error probability

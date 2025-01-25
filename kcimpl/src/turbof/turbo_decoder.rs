@@ -107,7 +107,7 @@ impl TurboDecoder{
 
             // Calcolare la media
             let average = sum / dapp1.len() as f64;
-            println!("average iterazione {:?} media {:?}", iteration, average);
+           // println!("average iterazione {:?} media {:?}", iteration, average);
 
            // println!("dapp1 dopo siso {:?}", dapp1);
            // println!("dapp1 {:?}", dapp1);
@@ -155,7 +155,7 @@ impl TurboDecoder{
 
             //app2 è un Vec<Vec<f64>>
             err[iteration][k1] = count2 as f64/ self.ls as f64;
-            println!("count2 {:?}", count2);
+           // println!("count2 {:?}", count2);
             count_error=count2;
             //sostituisco i valori
             // Generating the extrinsic information:
@@ -178,7 +178,7 @@ impl TurboDecoder{
 
             // Standard deviation
             let std_deviation = variance.sqrt();
-            println!("std deviation {:?} iterazione {:?} blocco k1 {:?}",std_deviation, iteration, k1);
+            //println!("std deviation {:?} iterazione {:?} blocco k1 {:?}",std_deviation, iteration, k1);
 
             // Store the result for testing (not needed, used for testing)
            // std[iteration][k1] = std_deviation;
