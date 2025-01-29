@@ -108,9 +108,9 @@ mod integration_tests {
 
     #[test]
     fn test_turbo_simulation_dyn(){
-        let simulation_length=150000;
-        let block_size=10000;
-        let mut error_prob =0.05;
+        let simulation_length=1000000;
+        let block_size=64000; //6400 lunghezza chiave pubblica di pk kyber e c, dato da mandare sempre in kyber 512 800 e 736 altre robe
+        let mut error_prob =0.1;
 
         let file_name="C:\\Users\\feder\\RustroverProjects\\TurboCodesRust_thesis\\kcimpl\\src\\interleaver.txt";
         let file_path=Path::new(file_name);
@@ -125,13 +125,14 @@ mod integration_tests {
             .expect("Unable to open or create output file");
 
         //println!("perm_trimmed {:?}", perm_trimmed);
-        for _ in 0..100{ //faccio la prima metà
-            error_prob+=0.002;
-            let (bit_err,block_err)=turbo_simulation_dynamic_length(perm_trimmed.clone(),block_size, simulation_length,error_prob, 10, 1);
+        for _ in 0..20{
+
+            let (bit_err,block_err, uncoded_p)=turbo_simulation_dynamic_length(perm_trimmed.clone(),block_size, simulation_length,error_prob, 8, 1);
             let output_line = format!(
-                "p: {:?} | Bit errors: {:?} | Total length: {:?} | Block errors: {:?}\n",
-                error_prob, bit_err, simulation_length, block_err
+                "p: {:?} | Bit errors: {:?} | Block errors: {:?} | uncoded_p: {:?}\n",
+                error_prob, bit_err, block_err, uncoded_p
             );
+            error_prob+=0.004;
 
             output_file
                 .write_all(output_line.as_bytes())
@@ -140,7 +141,7 @@ mod integration_tests {
 
 
     }
-    fn turbo_simulation_dynamic_length(perm_trimmed: Vec<i32>, block_size: usize, simulation_length: usize, error_probability: f64, iterations: usize, rate: usize)-> (f64, f64) {
+    fn turbo_simulation_dynamic_length(perm_trimmed: Vec<i32>, block_size: usize, simulation_length: usize, error_probability: f64, iterations: usize, rate: usize)-> (f64, f64, f64) {
         // Configurazione
 
         // let block_size = 10000; // Blocchi di n bit
@@ -160,10 +161,10 @@ mod integration_tests {
         );
 
         // Esecuzione della simulazione
-        let (bit_error_rate, block_error_rate) = simulation.run_simulation();
+        let (bit_error_rate, block_error_rate, uncoded_p) = simulation.run_simulation();
 
         // Validazione dei risultati
-        (bit_error_rate, block_error_rate)
+        (bit_error_rate, block_error_rate, uncoded_p)
         // assert!(error_rate >= 0.0 && error_rate <= 1.0, "Invalid error rate");
     }
 }

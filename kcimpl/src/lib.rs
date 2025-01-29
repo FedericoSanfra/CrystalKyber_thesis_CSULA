@@ -16,14 +16,18 @@
 //!
 //! // Alice runs keygen, publishes pk. Value sk is secret
 //! let (sk, pk) = kem.keygen();
+//! println!(" pk length {:?}", pk.data.len());
 //!
 //! // Bob uses pk3 to derive a key k and encapsulation c
 //! let (c, k) = kem.encaps(&pk);
 //!
 //! // Bob sends c to Alice
 //! // Alice uses s, c, sk3 and pk3 to recover k
-//! let k_recovered = kem.decaps(&c, &sk);
 //!
+//! let k_recovered = kem.decaps(&c, &sk);
+//! //debug_assert_eq!(1380, c.data.len());
+//! //736
+//! //800
 //! assert_eq!(k, k_recovered);
 //! ```
 //! For the PKE:
@@ -41,6 +45,8 @@
 //!
 //! // Bob uses the public key to encrypt the message
 //! let enc = pke.encrypt(&pk, &m, r.clone());
+//!
+//! debug_assert_eq!(1000, enc.data.len());
 //!
 //! // Bob sends enc to Alice
 //! // Alice uses the secret key to recover m

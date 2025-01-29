@@ -33,7 +33,7 @@ impl TurboSimulation{
         }
     }
 
-    pub fn run_simulation(&self,)->(f64, f64){
+    pub fn run_simulation(&self,)->(f64, f64, f64){
 
         // Assume that L and blok are defined earlier
         let m = self.simulation_length / self.block_size; // Number of times mptst2b gets called numero di blocchi
@@ -71,6 +71,7 @@ impl TurboSimulation{
         let mut err_res=Vec::new();
         let mut p_block_error=0.0;
         let mut count_error_tot:i32=0;
+        let mut count_uncoded_p=0;
 
         for k1 in 0..m { // va lasciata così?
             // Select the portion of the sequence needed for mptst2br
@@ -79,9 +80,12 @@ impl TurboSimulation{
             let u: Vec<i32> = utot[start_idx..end_idx].to_vec();
             let mut err:Vec<Vec<f64>>=vec![vec![0.0; m];self.iterations];
             let mut error_block:i32=-1;
+            let mut count_uncoded;
+
             // Simulate the decoding process
-            (err_res, error_block)= self.simulate_process(u, err.clone(), k1);
+            (err_res, error_block, count_uncoded)= self.simulate_process(u, err.clone(), k1);
             count_error_tot+=error_block;
+            count_uncoded_p+=count_uncoded;
             if error_block>0 {
                 p_block_error+=1.0; //incremento numero di blocchi errati
             }
@@ -97,23 +101,24 @@ impl TurboSimulation{
 
         //println!("Toterr: {:?}", toterr);
 
+        let mut tot_uncoded_err=count_uncoded_p as f64/self.simulation_length as f64;
         let mut erriter = vec![0.0; self.iterations];  // Inizializza erriter con zeri (o con tipo adeguato come f64)
 
         for j in 0..self.iterations {
             erriter[j] = err_res[j].iter().sum::<f64>() / m as f64;  // Somma gli errori e divide per M, err_res è un vec di vec !!
         }
 
-        (toterr, p_block_error) //toterr è probabilità di errore sul bit, p block sul blocco
+        (toterr, p_block_error, tot_uncoded_err) //toterr è probabilità di errore sul bit, p block sul blocco
     }
 
     // Simulate encoding and decoding process
-    fn simulate_process(&self, vec_block: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> (Vec<Vec<f64>>, i32){ //singolo blocco iterazione
+    fn simulate_process(&self, vec_block: Vec<i32>, err: Vec<Vec<f64>>, k1: usize) -> (Vec<Vec<f64>>, i32, usize){ //singolo blocco iterazione
         //dovrei mettere bits to levels qui e non fare nulla dopo, inoltre capire bene utot inizializzato cosa fa
         // Placeholder for the actual decoding process using MPTST2B and error calculation
        // println!("vec_block {:?}", vec_block);
        // let vec_levels=utils::bits_to_levels(vec_block);
         //println!("vec_levels {:?}", vec_levels);
-        let mut encoder =TurboEncoder::new(vec_block, self.perm.clone());
+        let mut encoder =TurboEncoder::new(vec_block.clone(), self.perm.clone());
         //VEC BLOCK è GIA IN LIVELLI
         let (u,up, sys1, sys2)=encoder.encode();
         //println!("sys2 {:?}", sys2);
@@ -123,6 +128,7 @@ impl TurboSimulation{
         let ls = u.len() - 2; // Calcola la lunghezza dei dati originali, senza l'estensione
 
         let n=generate_noise_vector(ls, self.error_probability); //vettore di rumore in levels
+        //println!("vec block{:?}", vec_block.clone().len());
 
         //println!("noise: {:?}", n);
 
@@ -135,6 +141,17 @@ impl TurboSimulation{
         //println!("sys2 levels {:?}", sys2_levels);
         // Primo bit sistematico con rumore
         let rs1: Vec<i32> = u.iter().zip(&n[0..ls + 2]).map(|(&ui, &ni)| ui * ni).collect();
+
+        // Contatore delle differenze
+        let count_uncoded = u.clone().iter()
+            .zip(rs1.clone().iter()) // Combina i due vettori in coppie
+            .filter(|(a, b)| a != b) // Filtra le coppie diverse
+            .count(); // Conta quante coppie sono diverse
+
+        // println!("count {:?}", count_uncoded);
+        // println!("u:  {:?}", u);
+        // println!("rs1 {:?}", rs1);
+
 
         // Upper RSC con rumore
         let ry1: Vec<i32> = sys1.iter()
@@ -160,6 +177,6 @@ impl TurboSimulation{
         let (err, count_error)=turbo_decoder.decode(self.iterations, self.perm.clone(), err.clone(), k1);
 
         //ritorna il decoder il vettore di errori
-        (err, count_error)
+        (err, count_error, count_uncoded)
     }
 }
