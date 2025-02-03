@@ -33,9 +33,11 @@ mod integration_tests {
         let error_probability = 0.1; // Probabilità di errore 10%
         let iterations = 3; // Numero di iterazioni di decodifica
         let rate = 1; // Rate 1/3
+        let kyber_input=kyber_encryption_generation();
 
         // Creazione dell'oggetto TurboSimulation
         let simulation = TurboSimulation::new(
+            kyber_input,
             perm,
             block_size,
             simulation_length,
@@ -65,9 +67,10 @@ mod integration_tests {
         let error_probability = 0.1; //irrilevante su prestazioni a limite, asintotiche
         let iterations = 8; // Numero di iterazioni di decodifica
         let rate = 1; // Rate 1/3
-
+        let kyber_input= kyber_encryption_generation();
         // Creazione dell'oggetto TurboSimulation
         let simulation = TurboSimulation::new(
+            kyber_input,
             perm,
             block_size,
             simulation_length,
@@ -108,9 +111,9 @@ mod integration_tests {
 
     #[test]
     fn test_turbo_simulation_dyn(){
-        let simulation_length=1000000;
-        let block_size=64000; //6400 lunghezza chiave pubblica di pk kyber e c, dato da mandare sempre in kyber 512 800 e 736 altre robe
-        let mut error_prob =0.1;
+        let simulation_length=1177600; // lunghezza 200 blocchi per 5888, messaggio criptato
+        let block_size=5888; //6400 lunghezza chiave pubblica di pk kyber e c, dato da mandare sempre in kyber 512 800 e 736 altre robe
+        let mut error_prob =0.05;
 
         let file_name="C:\\Users\\feder\\RustroverProjects\\TurboCodesRust_thesis\\kcimpl\\src\\interleaver.txt";
         let file_path=Path::new(file_name);
@@ -123,16 +126,17 @@ mod integration_tests {
             .append(true)
             .open(output_file_path)
             .expect("Unable to open or create output file");
+        let kyber_input=kyber_encryption_generation();
 
         //println!("perm_trimmed {:?}", perm_trimmed);
-        for _ in 0..20{
+        for _ in 0..25{
 
-            let (bit_err,block_err, uncoded_p)=turbo_simulation_dynamic_length(perm_trimmed.clone(),block_size, simulation_length,error_prob, 8, 1);
+            let (bit_err,block_err, uncoded_p)=turbo_simulation_dynamic_length(kyber_input.clone(), perm_trimmed.clone(),block_size, simulation_length,error_prob, 8, 1);
             let output_line = format!(
                 "p: {:?} | Bit errors: {:?} | Block errors: {:?} | uncoded_p: {:?}\n",
                 error_prob, bit_err, block_err, uncoded_p
             );
-            error_prob+=0.004;
+            error_prob+=0.002;
 
             output_file
                 .write_all(output_line.as_bytes())
@@ -141,7 +145,7 @@ mod integration_tests {
 
 
     }
-    fn turbo_simulation_dynamic_length(perm_trimmed: Vec<i32>, block_size: usize, simulation_length: usize, error_probability: f64, iterations: usize, rate: usize)-> (f64, f64, f64) {
+    fn turbo_simulation_dynamic_length(kyber_input:Vec<i32>, perm_trimmed: Vec<i32>, block_size: usize, simulation_length: usize, error_probability: f64, iterations: usize, rate: usize)-> (f64, f64, f64) {
         // Configurazione
 
         // let block_size = 10000; // Blocchi di n bit
@@ -152,6 +156,7 @@ mod integration_tests {
 
         // Creazione dell'oggetto TurboSimulation
         let simulation = TurboSimulation::new(
+            kyber_input,
             perm_trimmed,
             block_size,
             simulation_length,
@@ -167,4 +172,70 @@ mod integration_tests {
         (bit_error_rate, block_error_rate, uncoded_p)
         // assert!(error_rate >= 0.0 && error_rate <= 1.0, "Invalid error rate");
     }
+
+    fn u8_to_i32_vector(n: u8) -> Vec<i32> { //funzione da byte a bit
+        (0..8).rev().map(|i| ((n >> i) & 1) as i32).collect()
+    }
+
+    fn binary_to_signed(binary: Vec<i32>) -> Vec<i32> {
+        binary.into_iter().map(|b| if b == 0 { -1 } else { 1 }).collect()
+    }
+
+
+    fn kyber_encryption_generation()-> Vec<i32>{
+        use std::fs::OpenOptions;
+         use std::io::Write;
+         use kcimpl::{kyber512pke, ByteArray};
+         let pke = kyber512pke();
+         let output_file_path = "C:\\Users\\feder\\RustroverProjects\\TurboCodesRust_thesis\\kcimpl\\src\\kyber_keys.txt";
+                 let mut output_file = OpenOptions::new()
+                    .create(true)
+                     .write(true)
+                     .append(true)
+                     .open(output_file_path)
+                     .expect("Unable to open or create output file");
+        let mut byte_vec: Vec<u8>=Vec::new();
+
+         for i in 0..200{
+
+         // Bob wants to send an encrypted message to Alice
+         let m = ByteArray::random(32);
+         let r = ByteArray::random(32);
+
+         // Alice runs keygen, publishes pk. Value sk is secret
+         let (sk, pk) = pke.keygen();
+             //println!("pk: {:?}", pk);
+
+         // Bob uses the public key to encrypt the message
+         let enc = pke.encrypt(&pk, &m, r.clone());
+             byte_vec.extend(enc.clone().data); //concateno i vettori che ottengo volta per volta
+
+
+         // let output_line = format!(
+         //                 "{:?}",
+         //                 enc.data
+         //             );
+         // output_file.write_all(output_line.as_bytes()).expect("Failed to write to output file");
+         // println!("{:?}", enc.data.len());
+         //     println!("First 512 bytes (should be pk): {:?}", &enc.data[0..512]);
+         //     println!("Remaining bytes (ciphertext): {:?}", &enc.data[512..]);
+
+
+             // Bob sends enc to Alice
+         // Alice uses the secret key to recover m
+         let dec = pke.decrypt(&sk, &enc);
+
+         }
+        let mut bit_vec:Vec<i32>=Vec::new();
+        for i in 0..byte_vec.len(){
+            let mut bin_vec:Vec<i32>=Vec::new();
+            bin_vec=u8_to_i32_vector(byte_vec[i]);
+            let mut signed_vec:Vec<i32>=binary_to_signed(bin_vec);
+            bit_vec.extend(signed_vec); //trasformo in vettore di binario e aggiungo a vettore cumulativo di livelli, come pn sequence
+        }
+        bit_vec//ritorno vec di livelli
+
+        //println!("levels vec {:?}", bit_vec.len()); //vec di livelli già
+    }
+
 }

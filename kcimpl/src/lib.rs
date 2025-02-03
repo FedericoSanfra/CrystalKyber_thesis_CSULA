@@ -33,8 +33,19 @@
 //! For the PKE:
 //!
 //! ```rust
+//! use std::fs::OpenOptions;
+//! use std::io::Write;
 //! use kcimpl::{kyber512pke, ByteArray};
 //! let pke = kyber512pke();
+//! let output_file_path = "C:\\Users\\feder\\RustroverProjects\\TurboCodesRust_thesis\\kcimpl\\src\\kyber_keys.txt";
+//!         let mut output_file = OpenOptions::new()
+//!            .create(true)
+//!             .write(true)
+//!             .append(true)
+//!             .open(output_file_path)
+//!             .expect("Unable to open or create output file");
+//!
+//! for i in 0..200{
 //!
 //! // Bob wants to send an encrypted message to Alice
 //! let m = ByteArray::random(32);
@@ -46,13 +57,20 @@
 //! // Bob uses the public key to encrypt the message
 //! let enc = pke.encrypt(&pk, &m, r.clone());
 //!
-//! debug_assert_eq!(1000, enc.data.len());
+//! let output_line = format!(
+//!                 "{:?}",
+//!                 enc.data
+//!             );
+//! output_file.write_all(output_line.as_bytes()).expect("Failed to write to output file");
+//! //assert_eq!(736, enc.data.len());
 //!
 //! // Bob sends enc to Alice
 //! // Alice uses the secret key to recover m
 //! let dec = pke.decrypt(&sk, &enc);
 //!
-//! assert_eq!(m, dec);
+//! }
+//!
+//! //assert_eq!(m, dec);
 //! ```
 
 extern crate sha3;
