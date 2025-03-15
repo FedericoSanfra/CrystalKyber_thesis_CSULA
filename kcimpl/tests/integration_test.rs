@@ -111,9 +111,9 @@ mod integration_tests {
 
     #[test]
     fn test_turbo_simulation_dyn(){
-        let simulation_length=1177600; // lunghezza 200 blocchi per 5888, messaggio criptato
-        let block_size=5888; //6400 lunghezza chiave pubblica di pk kyber e c, dato da mandare sempre in kyber 512 800 e 736 altre robe
-        let mut error_prob =0.05;
+        let simulation_length=1000000; // lunghezza 200 blocchi per 5888, messaggio criptato
+        let block_size=64000; //6400 lunghezza chiave pubblica di pk kyber e c, dato da mandare sempre in kyber 512 800 e 736 altre robe
+        let mut error_prob =0.185;///da cambiare nella prossima simulazione
 
         let file_name="C:\\Users\\feder\\RustroverProjects\\TurboCodesRust_thesis\\kcimpl\\src\\interleaver.txt";
         let file_path=Path::new(file_name);
@@ -129,14 +129,14 @@ mod integration_tests {
         let kyber_input=kyber_encryption_generation();
 
         //println!("perm_trimmed {:?}", perm_trimmed);
-        for _ in 0..25{
+        for _ in 0..3{
 
             let (bit_err,block_err, uncoded_p)=turbo_simulation_dynamic_length(kyber_input.clone(), perm_trimmed.clone(),block_size, simulation_length,error_prob, 8, 1);
             let output_line = format!(
                 "p: {:?} | Bit errors: {:?} | Block errors: {:?} | uncoded_p: {:?}\n",
                 error_prob, bit_err, block_err, uncoded_p
             );
-            error_prob+=0.002;
+            error_prob+=0.005;
 
             output_file
                 .write_all(output_line.as_bytes())

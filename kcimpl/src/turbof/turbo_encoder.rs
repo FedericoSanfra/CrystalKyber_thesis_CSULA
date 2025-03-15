@@ -11,7 +11,8 @@ pub struct TurboEncoder{
 
 impl TurboEncoder{
     pub fn new(
-        input: Vec<i32>,
+        input:
+        Vec<i32>,
         perm:Vec<i32>
     )->Self{
 

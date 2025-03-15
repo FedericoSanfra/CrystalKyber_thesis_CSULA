@@ -1,25 +1,62 @@
-p: 0.05 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.049841202445652176
-p: 0.052000000000000005 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.05212890625
-p: 0.054000000000000006 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.053511379076086954
-p: 0.05600000000000001 | Bit errors: 1.6983695652173912e-6 | Block errors: 0.005 | uncoded_p: 0.056291610054347824
-p: 0.05800000000000001 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.0577734375
-p: 0.06000000000000001 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.05959493885869565
-p: 0.06200000000000001 | Bit errors: 3.3967391304347823e-6 | Block errors: 0.005 | uncoded_p: 0.06174252717391304
-p: 0.06400000000000002 | Bit errors: 4.245923913043478e-6 | Block errors: 0.01 | uncoded_p: 0.06441491168478261
-p: 0.06600000000000002 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.06599099864130435
-p: 0.06800000000000002 | Bit errors: 5.94429347826087e-6 | Block errors: 0.015 | uncoded_p: 0.06786005434782609
-p: 0.07000000000000002 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.07044157608695652
-p: 0.07200000000000002 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.07185971467391304
-p: 0.07400000000000002 | Bit errors: 5.0951086956521735e-6 | Block errors: 0.005 | uncoded_p: 0.07392408288043478
-p: 0.07600000000000003 | Bit errors: 4.245923913043478e-6 | Block errors: 0.015 | uncoded_p: 0.07581776494565218
-p: 0.07800000000000003 | Bit errors: 0.0 | Block errors: 0.0 | uncoded_p: 0.0783890964673913
-p: 0.08000000000000003 | Bit errors: 1.6983695652173912e-6 | Block errors: 0.005 | uncoded_p: 0.07991847826086956
-p: 0.08200000000000003 | Bit errors: 3.3967391304347823e-6 | Block errors: 0.01 | uncoded_p: 0.08198879076086957
-p: 0.08400000000000003 | Bit errors: 6.793478260869565e-6 | Block errors: 0.02 | uncoded_p: 0.08362856657608696
-p: 0.08600000000000003 | Bit errors: 3.3967391304347823e-6 | Block errors: 0.01 | uncoded_p: 0.08580587635869565
-p: 0.08800000000000004 | Bit errors: 1.6983695652173912e-6 | Block errors: 0.005 | uncoded_p: 0.08845023777173913
-p: 0.09000000000000004 | Bit errors: 1.6983695652173912e-6 | Block errors: 0.005 | uncoded_p: 0.08996008831521739
-p: 0.09200000000000004 | Bit errors: 5.0951086956521735e-6 | Block errors: 0.015 | uncoded_p: 0.09221552309782609
-p: 0.09400000000000004 | Bit errors: 1.0190217391304347e-5 | Block errors: 0.02 | uncoded_p: 0.09424592391304348
-p: 0.09600000000000004 | Bit errors: 7.64266304347826e-6 | Block errors: 0.015 | uncoded_p: 0.09596891983695652
-p: 0.09800000000000005 | Bit errors: 7.64266304347826e-6 | Block errors: 0.015 | uncoded_p: 0.0976859714673913
+---simulazione 6400k
+p: 0.15 | Bit errors: 0.06384415064102567 | Block errors: 1.0 | uncoded_p: 0.150462
+p: 0.155 | Bit errors: 0.08572315705128207 | Block errors: 1.0 | uncoded_p: 0.155656
+p: 0.16 | Bit errors: 0.10842047275641019 | Block errors: 1.0 | uncoded_p: 0.159373
+p: 0.165 | Bit errors: 0.12874098557692307 | Block errors: 1.0 | uncoded_p: 0.164699
+p: 0.17 | Bit errors: 0.14407451923076933 | Block errors: 1.0 | uncoded_p: 0.169611
+p: 0.17500000000000002 | Bit errors: 0.1652984775641026 | Block errors: 1.0 | uncoded_p: 0.174791
+p: 0.18000000000000002 | Bit errors: 0.1808663862179487 | Block errors: 1.0 | uncoded_p: 0.179951
+p: 0.18500000000000003 | Bit errors: 0.1973177083333334 | Block errors: 1.0 | uncoded_p: 0.184675
+p: 0.19000000000000003 | Bit errors: 0.21271233974358958 | Block errors: 1.0 | uncoded_p: 0.189925
+p: 0.19500000000000003 | Bit errors: 0.22382411858974377 | Block errors: 1.0 | uncoded_p: 0.194953
+--- simulazione 10000k
+
+p: 0.15 | Bit errors: 0.06426599999999998 | Block errors: 1.0 | uncoded_p: 0.150495
+p: 0.155 | Bit errors: 0.08538900000000002 | Block errors: 1.0 | uncoded_p: 0.154199
+p: 0.16 | Bit errors: 0.10662499999999991 | Block errors: 1.0 | uncoded_p: 0.159971
+p: 0.165 | Bit errors: 0.12756100000000006 | Block errors: 1.0 | uncoded_p: 0.164848
+p: 0.17 | Bit errors: 0.147544 | Block errors: 1.0 | uncoded_p: 0.170412
+p: 0.17500000000000002 | Bit errors: 0.16472800000000004 | Block errors: 1.0 | uncoded_p: 0.175082
+p: 0.18000000000000002 | Bit errors: 0.18120499999999992 | Block errors: 1.0 | uncoded_p: 0.180328
+p: 0.18500000000000003 | Bit errors: 0.194827 | Block errors: 1.0 | uncoded_p: 0.184761
+p: 0.19000000000000003 | Bit errors: 0.21208699999999994 | Block errors: 1.0 | uncoded_p: 0.189969
+p: 0.19500000000000003 | Bit errors: 0.22297 | Block errors: 1.0 | uncoded_p: 0.19587
+
+---simulazione 16000k
+
+p: 0.15 | Bit errors: 0.06477520161290323 | Block errors: 1.0 | uncoded_p: 0.149023
+p: 0.155 | Bit errors: 0.08571270161290324 | Block errors: 1.0 | uncoded_p: 0.15361
+p: 0.16 | Bit errors: 0.1078165322580645 | Block errors: 1.0 | uncoded_p: 0.159384
+p: 0.165 | Bit errors: 0.12652016129032256 | Block errors: 1.0 | uncoded_p: 0.163618
+p: 0.17 | Bit errors: 0.1460715725806452 | Block errors: 1.0 | uncoded_p: 0.16764
+p: 0.17500000000000002 | Bit errors: 0.16363608870967744 | Block errors: 1.0 | uncoded_p: 0.172897
+p: 0.18000000000000002 | Bit errors: 0.1808870967741935 | Block errors: 1.0 | uncoded_p: 0.178648
+p: 0.18500000000000003 | Bit errors: 0.1968941532258065 | Block errors: 1.0 | uncoded_p: 0.183747
+p: 0.19000000000000003 | Bit errors: 0.21166431451612908 | Block errors: 1.0 | uncoded_p: 0.189488
+p: 0.19500000000000003 | Bit errors: 0.22350201612903217 | Block errors: 1.0 | uncoded_p: 0.193623
+
+---simulazione 32000k
+
+p: 0.15 | Bit errors: 0.06575504032258064 | Block errors: 1.0 | uncoded_p: 0.147976
+p: 0.155 | Bit errors: 0.08490725806451611 | Block errors: 1.0 | uncoded_p: 0.153212
+p: 0.16 | Bit errors: 0.10587298387096772 | Block errors: 1.0 | uncoded_p: 0.158467
+p: 0.165 | Bit errors: 0.12841431451612906 | Block errors: 1.0 | uncoded_p: 0.163807
+p: 0.17 | Bit errors: 0.14732963709677419 | Block errors: 1.0 | uncoded_p: 0.168464
+p: 0.17500000000000002 | Bit errors: 0.16531451612903228 | Block errors: 1.0 | uncoded_p: 0.173355
+p: 0.18000000000000002 | Bit errors: 0.179797379032258 | Block errors: 1.0 | uncoded_p: 0.178568
+p: 0.18500000000000003 | Bit errors: 0.19807862903225804 | Block errors: 1.0 | uncoded_p: 0.183408
+p: 0.19000000000000003 | Bit errors: 0.21059979838709678 | Block errors: 1.0 | uncoded_p: 0.188634
+p: 0.19500000000000003 | Bit errors: 0.22551310483870968 | Block errors: 1.0 | uncoded_p: 0.193472
+
+---simulazione 64000k
+
+p: 0.15 | Bit errors: 0.06322291666666666 | Block errors: 1.0 | uncoded_p: 0.143536
+p: 0.155 | Bit errors: 0.08711666666666669 | Block errors: 1.0 | uncoded_p: 0.148696
+p: 0.16 | Bit errors: 0.10729270833333333 | Block errors: 1.0 | uncoded_p: 0.153446
+p: 0.165 | Bit errors: 0.12812916666666668 | Block errors: 1.0 | uncoded_p: 0.157889
+p: 0.17 | Bit errors: 0.14711666666666667 | Block errors: 1.0 | uncoded_p: 0.1637
+p: 0.17500000000000002 | Bit errors: 0.1641635416666666 | Block errors: 1.0 | uncoded_p: 0.167973
+p: 0.18000000000000002 | Bit errors: 0.18187291666666672 | Block errors: 1.0 | uncoded_p: 0.172278
+p: 0.185 | Bit errors: 0.19709791666666662 | Block errors: 1.0 | uncoded_p: 0.178027
+p: 0.19 | Bit errors: 0.2119802083333333 | Block errors: 1.0 | uncoded_p: 0.182251
+p: 0.195 | Bit errors: 0.22663125000000003 | Block errors: 1.0 | uncoded_p: 0.187693
