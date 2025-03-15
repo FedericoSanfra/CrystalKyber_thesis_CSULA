@@ -90,7 +90,7 @@ in order to run the simulation many times and gather as much data as possible. P
     - simulation_length
     - block_size
     - error_probability
-The interleaver is set with the same length of the turbo-block. The interleaver is coming from the input file interleaver.txt 
+- The interleaver is set with the same length of the turbo-block. The interleaver is coming from the input file interleaver.txt 
 of 64000 bits length. In the output file is stored the result of simulations. By assuming that the random generated input is 
 made of uncorrelated bits, there is no difference between a random generated input sequence and a kyber's key (public key, secret key or cyphertext).
 Anyway, in the `turbo_simulation.rs` file the code for using kyber keys as input, is commented and can be used, in lines: 81-82, by using an input.txt file.
