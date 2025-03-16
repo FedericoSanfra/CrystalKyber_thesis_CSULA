@@ -30,7 +30,65 @@
 //! //800
 //! assert_eq!(k, k_recovered);
 //! ```
+//! For measurements and metrics:
+//!
 //! For the PKE:
+//! ```rust
+//! use kcimpl::kyber512kem;
+//! use std::time::Instant;
+//! use sysinfo::{System, Process, Pid};
+//!
+//! fn main() {
+//!     let mut sys = System::new_all();
+//!     sys.refresh_all();
+//!
+//!     let kem = kyber512kem();
+//!
+//!     // Registra il tempo di inizio
+//!     let start_time = Instant::now();
+//!
+//!     // Registra l'uso della CPU e memoria prima dell'esecuzione
+//!     let process_id = sysinfo::get_current_pid().unwrap();
+//!     let mut cpu_before = 0.0;
+//!     let mut mem_before = 0;
+//!
+//!     if let Some(proc) = sys.process(process_id) {
+//!         cpu_before = proc.cpu_usage();
+//!         mem_before = proc.memory();
+//!     }
+//!
+//!     // Alice runs keygen
+//!     let (sk, pk) = kem.keygen();
+//!     println!("Public key length: {:?}", pk.data.len());
+//!
+//!     // Bob encapsulates key
+//!     let (c, k) = kem.encaps(&pk);
+//!
+//!     // Alice decapsulates key
+//!     let k_recovered = kem.decaps(&c, &sk);
+//!
+//!     // Registra il tempo di fine
+//!     let duration = start_time.elapsed();
+//!
+//!     // Aggiorna info di sistema dopo l'esecuzione
+//!     sys.refresh_all();
+//!     let mut cpu_after = 0.0;
+//!     let mut mem_after = 0;
+//!
+//!     if let Some(proc) = sys.process(process_id) {
+//!         cpu_after = proc.cpu_usage();
+//!         mem_after = proc.memory();
+//!     }
+//!
+//!     // Verifica la correttezza della decapsulazione
+//!     assert_eq!(k, k_recovered);
+//!
+//!     // Stampa delle metriche di performance
+//!     println!("Execution time: {:?}", duration);
+//!     println!("CPU usage: {:.2}%", cpu_after - cpu_before);
+//!     println!("Memory usage (bytes): {}", mem_after - mem_before);
+//! }
+//! ```
 //!
 //! ```rust
 //! use std::fs::OpenOptions;
